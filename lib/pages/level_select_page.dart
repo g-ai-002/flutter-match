@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../game/chapters.dart';
 import '../game/levels.dart';
 import '../models/level.dart';
 import '../providers/settings_provider.dart';
@@ -69,40 +70,105 @@ class LevelSelectPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 178,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 0.92,
-                        ),
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final level = kLevels[index];
-                      final unlocked = level.id <= settings.unlockedLevel;
-                      return _LevelCard(
-                        level: level,
-                        stars: settings.starsFor(level.id),
-                        bestScore: settings.bestScoreFor(level.id),
-                        unlocked: unlocked,
-                        onTap: unlocked
-                            ? () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => GamePage(level: level),
-                                ),
-                              )
-                            : null,
-                      );
-                    }, childCount: kLevels.length),
+                for (final chapter in kChapters) ...[
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+                    sliver: SliverToBoxAdapter(
+                      child: _ChapterHeader(
+                        chapter: chapter,
+                        stars: starsInChapter(chapter, settings.starsFor),
+                      ),
+                    ),
                   ),
-                ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 178,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.92,
+                          ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final chapterLevels = levelsOfChapter(chapter);
+                        final level = chapterLevels[index];
+                        final unlocked = level.id <= settings.unlockedLevel;
+                        return _LevelCard(
+                          level: level,
+                          stars: settings.starsFor(level.id),
+                          bestScore: settings.bestScoreFor(level.id),
+                          unlocked: unlocked,
+                          onTap: unlocked
+                              ? () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => GamePage(level: level),
+                                  ),
+                                )
+                              : null,
+                        );
+                      }, childCount: chapter.levelCount),
+                    ),
+                  ),
+                ],
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
               ],
             );
           },
         ),
       ),
+    );
+  }
+}
+
+class _ChapterHeader extends StatelessWidget {
+  const _ChapterHeader({required this.chapter, required this.stars});
+
+  final Chapter chapter;
+  final int stars;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final maxStars = chapter.levelCount * 3;
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 30,
+          decoration: BoxDecoration(
+            color: appRed,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(chapter.title, style: theme.textTheme.titleSmall),
+              Text(
+                chapter.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 11,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.star_rounded, size: 15, color: appGoldBright),
+        const SizedBox(width: 3),
+        Text(
+          '$stars / $maxStars',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

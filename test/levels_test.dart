@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fortune_match/game/chapters.dart';
 import 'package:fortune_match/game/levels.dart';
 import 'package:fortune_match/models/level.dart';
 import 'package:fortune_match/models/tile.dart';
 
 void main() {
   test('关卡编号连续、目标与星级配置合法', () {
-    expect(kLevels, hasLength(25));
+    expect(kLevels, hasLength(50));
     for (var index = 0; index < kLevels.length; index++) {
       final level = kLevels[index];
       expect(level.id, index + 1);
@@ -30,6 +31,15 @@ void main() {
       for (final layers in level.ice.values) {
         expect(layers, inInclusiveRange(1, 2));
       }
+      for (final goal in level.goals.where(
+        (goal) => goal.kind == GoalKind.ice,
+      )) {
+        expect(
+          goal.target,
+          lessThanOrEqualTo(level.ice.length),
+          reason: '第 ${level.id} 关的破冰目标不能超过冰层格数',
+        );
+      }
     }
   });
 
@@ -38,7 +48,43 @@ void main() {
     expect(names, hasLength(kLevels.length));
     expect(nextLevelOf(1)?.id, 2);
     expect(nextLevelOf(24)?.id, 25);
-    expect(nextLevelOf(25), isNull);
+    expect(nextLevelOf(25)?.id, 26);
+    expect(nextLevelOf(50), isNull);
     expect(levelById(999).id, 1);
+  });
+
+  test('章节区间连续覆盖全部关卡', () {
+    expect(kChapters, hasLength(2));
+    expect(kChapters.first.fromLevel, 1);
+    expect(kChapters.last.toLevel, kLevels.length);
+    for (var index = 0; index < kChapters.length; index++) {
+      final chapter = kChapters[index];
+      expect(levelsOfChapter(chapter), hasLength(chapter.levelCount));
+      if (index > 0) {
+        expect(chapter.fromLevel, kChapters[index - 1].toLevel + 1);
+      }
+      for (final level in levelsOfChapter(chapter)) {
+        expect(chapterOfLevel(level.id), same(chapter));
+      }
+    }
+    expect(chapterOfLevel(1).id, 1);
+    expect(chapterOfLevel(26).id, 2);
+    expect(chapterOfLevel(50).id, 2);
+  });
+
+  test('第二章为 9×9 满棋子池的进阶关卡', () {
+    final chapter = kChapters.last;
+    for (final level in levelsOfChapter(chapter)) {
+      expect(level.cols, 9);
+      expect(level.rows, 9);
+      expect(level.palette, TileType.values.length);
+      expect(level.goals.length, greaterThanOrEqualTo(2));
+    }
+  });
+
+  test('章节福星统计按区间累加', () {
+    final stars = {1: 3, 2: 2, 25: 1, 26: 3};
+    expect(starsInChapter(kChapters.first, (id) => stars[id] ?? 0), 6);
+    expect(starsInChapter(kChapters.last, (id) => stars[id] ?? 0), 3);
   });
 }
