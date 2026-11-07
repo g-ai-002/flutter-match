@@ -41,8 +41,8 @@ void main() {
     expect(find.text('关卡选择'), findsOneWidget);
     expect(find.text('初尝福味'), findsOneWidget);
     expect(find.text('最高 4200 分'), findsOneWidget);
-    expect(find.text('5 / 60'), findsOneWidget);
-    expect(find.byIcon(Icons.lock_outline_rounded), findsNWidgets(17));
+    expect(find.text('5 / 75'), findsOneWidget);
+    expect(find.byIcon(Icons.lock_outline_rounded), findsNWidgets(22));
   });
 
   testWidgets('点击已解锁关卡进入对局页', (tester) async {

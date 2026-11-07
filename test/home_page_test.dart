@@ -89,4 +89,24 @@ void main() {
     expect(find.text('剩余步数'), findsOneWidget);
     expect(find.text('第 1 关 · 7 × 7'), findsOneWidget);
   });
+
+  testWidgets('首页展示每日挑战入口并可进入今日棋局', (tester) async {
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+    await tester.pump();
+
+    expect(find.text('每日挑战'), findsOneWidget);
+    expect(find.text('去挑战'), findsOneWidget);
+
+    await tester.tap(find.text('每日挑战'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(find.text('每日挑战 · 8 × 8'), findsOneWidget);
+  });
 }

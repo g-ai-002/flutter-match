@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fortune_match/game/daily_challenge.dart';
 import 'package:fortune_match/game/levels.dart';
 import 'package:fortune_match/game/logic_rate.dart';
+import 'package:fortune_match/game/props.dart';
+import 'package:fortune_match/providers/settings_provider.dart';
 import 'package:fortune_match/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -76,5 +79,68 @@ void main() {
     expect(storage.logicRate, LogicRate.hz60);
     await storage.setLogicRate(LogicRate.hz120);
     expect(storage.logicRate, LogicRate.hz120);
+  });
+
+  test('福币与道具库存持久化，余额不会变成负数', () async {
+    final storage = await StorageService.instance;
+    expect(storage.coins, 0);
+    expect(storage.propCount(PropKind.hammer), PropKind.hammer.initialStock);
+
+    await storage.addCoins(100);
+    expect(storage.coins, 100);
+    await storage.setPropCount(PropKind.hammer, 5);
+    expect(storage.propCount(PropKind.hammer), 5);
+    await storage.addCoins(-150);
+    expect(storage.coins, 0);
+    await storage.setPropCount(PropKind.hammer, -3);
+    expect(storage.propCount(PropKind.hammer), 0);
+  });
+
+  test('福币足够时购买道具，不足时保持不变', () async {
+    final storage = await StorageService.instance;
+    await storage.addCoins(PropKind.shuffle.price + 5);
+    final settings = SettingsProvider(storage);
+    final before = settings.propCount(PropKind.shuffle);
+
+    expect(await settings.buyProp(PropKind.shuffle), isTrue);
+    expect(settings.propCount(PropKind.shuffle), before + 1);
+    expect(settings.coins, 5);
+
+    expect(await settings.buyProp(PropKind.swap), isFalse);
+    expect(settings.propCount(PropKind.swap), PropKind.swap.initialStock);
+    expect(settings.coins, 5);
+  });
+
+  test('每日挑战首次通关发放福币，重复通关不再发放', () async {
+    final storage = await StorageService.instance;
+    const key = '20261108';
+
+    final reward = await storage.recordDailyResult(
+      dateKey: key,
+      stars: 2,
+      score: 3000,
+    );
+    expect(reward, DailyChallenge.rewardCoins);
+    expect(storage.coins, DailyChallenge.rewardCoins);
+    expect(storage.dailyStars(key), 2);
+    expect(storage.dailyBestScore(key), 3000);
+
+    final again = await storage.recordDailyResult(
+      dateKey: key,
+      stars: 3,
+      score: 4200,
+    );
+    expect(again, 0);
+    expect(storage.coins, DailyChallenge.rewardCoins);
+    expect(storage.dailyStars(key), 3);
+    expect(storage.dailyBestScore(key), 4200);
+
+    final failed = await storage.recordDailyResult(
+      dateKey: '20261109',
+      stars: 0,
+      score: 900,
+    );
+    expect(failed, 0);
+    expect(storage.dailyStars('20261109'), 0);
   });
 }

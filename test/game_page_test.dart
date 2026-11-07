@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/game/levels.dart';
 import 'package:fortune_match/pages/game_page.dart';
+import 'package:fortune_match/pages/widgets/prop_bar.dart';
 import 'package:fortune_match/providers/settings_provider.dart';
 import 'package:fortune_match/services/sound_service.dart';
 import 'package:fortune_match/services/storage_service.dart';
@@ -44,8 +45,8 @@ void main() {
     expect(find.text('剩余步数'), findsOneWidget);
     expect(find.text('20'), findsOneWidget);
     expect(find.text('提示'), findsOneWidget);
-    expect(find.text('重排'), findsOneWidget);
     expect(find.text('重开'), findsOneWidget);
+    expect(find.byType(PropButton), findsNWidgets(3));
     expect(find.text('0/1200'), findsOneWidget);
   });
 
@@ -71,5 +72,44 @@ void main() {
 
     // 清掉提示计时器，避免测试结束时仍有挂起任务。
     await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('道具按钮可进入待命状态，再次点击取消', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.gavel_rounded));
+    await tester.pump();
+    expect(find.text('点击一枚棋子，用小锤敲掉它'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.gavel_rounded));
+    await tester.pump();
+    expect(find.text('点击一枚棋子，用小锤敲掉它'), findsNothing);
+  });
+
+  testWidgets('道具用尽后点击打开道具铺', (tester) async {
+    SharedPreferences.setMockInitialValues({'prop_hammer': 0});
+    StorageService.resetForTests();
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.gavel_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.text('道具铺'), findsOneWidget);
+    expect(find.text('福币不足'), findsWidgets);
   });
 }

@@ -5,7 +5,7 @@ import 'package:fortune_match/models/tile.dart';
 
 void main() {
   test('关卡编号连续、目标与星级配置合法', () {
-    expect(kLevels, hasLength(20));
+    expect(kLevels, hasLength(25));
     for (var index = 0; index < kLevels.length; index++) {
       final level = kLevels[index];
       expect(level.id, index + 1);
@@ -37,7 +37,8 @@ void main() {
     final names = kLevels.map((level) => level.name).toSet();
     expect(names, hasLength(kLevels.length));
     expect(nextLevelOf(1)?.id, 2);
-    expect(nextLevelOf(20), isNull);
+    expect(nextLevelOf(24)?.id, 25);
+    expect(nextLevelOf(25), isNull);
     expect(levelById(999).id, 1);
   });
 }
