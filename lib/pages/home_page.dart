@@ -148,24 +148,29 @@ class _TopBar extends StatelessWidget {
           child: const TileBadge(type: TileType.coin),
         ),
         const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppConstants.appName,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            Text(
-              'FORTUNE MATCH',
-              style: TextStyle(
-                fontSize: 8.5,
-                letterSpacing: 1.6,
-                color: colors.onSurfaceVariant,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppConstants.appName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall,
               ),
-            ),
-          ],
+              Text(
+                'FORTUNE MATCH',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 8.5,
+                  letterSpacing: 1.6,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
-        const Spacer(),
         IconButton(
           tooltip: '玩法说明',
           onPressed: () => _showRules(context),
@@ -210,22 +215,25 @@ class _Hero extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _OrnamentLine(color: colors.outline),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                '三 消 成 趣 · 福 运 连 连',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  letterSpacing: 2,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _OrnamentLine(color: colors.outline),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  '三 消 成 趣 · 福 运 连 连',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    letterSpacing: 2,
+                  ),
                 ),
               ),
-            ),
-            _OrnamentLine(color: colors.outline),
-          ],
+              _OrnamentLine(color: colors.outline),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         Text(
@@ -370,32 +378,43 @@ class _StartPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: EntryTile(
-                leading: const EntryBadge(
-                  icon: Icons.grid_view_rounded,
-                  accent: Color(0xFFA63A2B),
-                ),
-                title: '关卡选择',
-                subtitle: '${kLevels.length} 关 · 已通关 $cleared',
-                onTap: () => _openLevels(context),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final levels = EntryTile(
+              leading: const EntryBadge(
+                icon: Icons.grid_view_rounded,
+                accent: Color(0xFFA63A2B),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: EntryTile(
-                leading: const EntryBadge(
-                  icon: Icons.tune_rounded,
-                  accent: Color(0xFF3F6B5B),
-                ),
-                title: '设置',
-                subtitle: '音效 · 刷新率',
-                onTap: () => _openSettings(context),
+              title: '关卡选择',
+              subtitle: '${kLevels.length} 关 · 已通关 $cleared',
+              onTap: () => _openLevels(context),
+            );
+            final settingsTile = EntryTile(
+              leading: const EntryBadge(
+                icon: Icons.tune_rounded,
+                accent: Color(0xFF3F6B5B),
               ),
-            ),
-          ],
+              title: '设置',
+              subtitle: '音效 · 刷新率',
+              onTap: () => _openSettings(context),
+            );
+            if (constraints.maxWidth < 460) {
+              return Column(
+                children: [
+                  levels,
+                  const SizedBox(height: 10),
+                  settingsTile,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: levels),
+                const SizedBox(width: 12),
+                Expanded(child: settingsTile),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 12),
         Container(

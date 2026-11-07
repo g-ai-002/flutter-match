@@ -58,6 +58,22 @@ void main() {
     expect(start.bottom, lessThan(900));
   });
 
+  testWidgets('窄屏手机首页不溢出，关卡与设置入口改为上下堆叠', (tester) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+
+    expect(tester.takeException(), isNull);
+    final levels = tester.getRect(find.text('关卡选择'));
+    final settings = tester.getRect(find.text('设置'));
+    expect(settings.top, greaterThan(levels.bottom));
+    expect(find.text('开始闯关'), findsOneWidget);
+  });
+
   testWidgets('点击开始闯关进入第一关', (tester) async {
     tester.view.physicalSize = const Size(800, 900);
     tester.view.devicePixelRatio = 1.0;
