@@ -60,6 +60,9 @@ class MatchController extends ChangeNotifier {
 
   final Map<TileType, int> _collected = {};
 
+  /// 目标进度快照：HUD 一次重建可能读取多次，分数或收集变化后才重算。
+  List<GoalProgress>? _goalProgress;
+
   GameBoard get board => _engine.board;
   int get movesLeft => _movesLeft;
   int get score => _score;
@@ -102,7 +105,7 @@ class MatchController extends ChangeNotifier {
     GoalKind.ice => _iceBroken,
   };
 
-  List<GoalProgress> get goalProgress => [
+  List<GoalProgress> get goalProgress => _goalProgress ??= [
     for (final goal in level.goals)
       GoalProgress(goal: goal, current: progressValue(goal)),
   ];
@@ -286,6 +289,7 @@ class MatchController extends ChangeNotifier {
     for (final tile in step.tiles) {
       _collected[tile.type] = (_collected[tile.type] ?? 0) + 1;
     }
+    _goalProgress = null;
     notifyListeners();
   }
 
@@ -370,6 +374,7 @@ class MatchController extends ChangeNotifier {
     _pending = const [];
     _status = GameStatus.ready;
     _collected.clear();
+    _goalProgress = null;
     _autoShuffled = false;
     _resetInteraction();
     _boardRevision++;

@@ -139,6 +139,29 @@ void main() {
     expect(controller.goalProgress.single.ratio, inInclusiveRange(0, 1));
   });
 
+  test('目标进度快照复用，得分变化或重开后失效', () {
+    final controller = MatchController(level: _level(), seed: 101);
+    final first = controller.goalProgress;
+    expect(identical(controller.goalProgress, first), isTrue);
+
+    // 选中棋子不推进目标，继续复用同一份快照。
+    controller.tapCell(0);
+    expect(identical(controller.goalProgress, first), isTrue);
+
+    controller.requestHint();
+    final hint = controller.hint!;
+    controller.swap(hint.a, hint.b);
+    controller.settleImmediately();
+    final updated = controller.goalProgress;
+    expect(identical(updated, first), isFalse);
+    expect(updated.single.current, controller.score);
+
+    controller.restart();
+    final restarted = controller.goalProgress;
+    expect(identical(restarted, updated), isFalse);
+    expect(restarted.single.current, 0);
+  });
+
   test('动画播放期间忽略点选与交换，避免打断动画队列', () {
     final controller = MatchController(level: _level(), seed: 91);
     controller.requestHint();

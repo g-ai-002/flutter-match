@@ -37,6 +37,9 @@ class _GamePageState extends State<GamePage> {
   bool _endRecorded = false;
   bool _shuffleToastShown = false;
 
+  /// 结算浮层的可见状态；只有它翻转时才重建页面骨架。
+  bool _resultVisible = false;
+
   @override
   void initState() {
     super.initState();
@@ -84,7 +87,13 @@ class _GamePageState extends State<GamePage> {
       unawaited(_recordEnd());
     }
     _showShuffleToastIfNeeded();
-    setState(() {});
+    // 动画期间分数与目标由 AnimatedBuilder 局部刷新，页面骨架只在结算浮层
+    // 出现或消失时重建一次，避免每个消除步骤都跑一遍整页 build。
+    final visible = _controller.isOver;
+    if (visible != _resultVisible) {
+      _resultVisible = visible;
+      setState(() {});
+    }
   }
 
   /// 对局结束结算：通关奖励、成就统计与本次新解锁的成就。
@@ -240,11 +249,8 @@ class _GamePageState extends State<GamePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final hasNext = nextLevelOf(widget.level.id) != null;
-    final prompt =
-        _propPrompt ?? (_controller.hint != null ? '试试交换闪动的两枚棋子' : null);
 
     return BoardDisplayMode(
       child: Scaffold(
@@ -272,34 +278,15 @@ class _GamePageState extends State<GamePage> {
                     top: 0,
                     left: 0,
                     right: 0,
-                    child: SafeArea(
-                      bottom: false,
-                      child: GameTopHud(
-                        level: widget.level,
-                        controller: _controller,
-                        compact: compact,
-                      ),
-                    ),
+                    child: SafeArea(bottom: false, child: _topHud(compact)),
                   ),
                   Positioned(
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    child: SafeArea(
-                      top: false,
-                      child: GameBottomBar(
-                        compact: compact,
-                        propCount: _controller.propCount,
-                        activeProp: _controller.activeProp,
-                        onProp: _onPropTap,
-                        onHint: _controller.canInteract
-                            ? _controller.requestHint
-                            : null,
-                        onRestart: _confirmRestart,
-                      ),
-                    ),
+                    child: SafeArea(top: false, child: _bottomBar(compact)),
                   ),
-                  if (_controller.isOver)
+                  if (_resultVisible)
                     Positioned.fill(
                       child: ResultOverlay(
                         controller: _controller,
@@ -310,39 +297,76 @@ class _GamePageState extends State<GamePage> {
                         onLevels: _goLevels,
                       ),
                     ),
-                  if (_controller.canInteract && prompt != null)
-                    Positioned(
-                      top: topInset + 4,
-                      left: 0,
-                      right: 0,
-                      child: IgnorePointer(
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.surface.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: colors.outline),
-                            ),
-                            child: Text(
-                              prompt,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  Positioned(
+                    top: topInset + 4,
+                    left: 0,
+                    right: 0,
+                    child: _promptBar(context),
+                  ),
                 ],
               );
             },
           ),
         ),
       ),
+    );
+  }
+
+  /// 顶部 HUD 只订阅控制器，动画期间不牵动页面骨架与棋盘。
+  Widget _topHud(bool compact) => AnimatedBuilder(
+    animation: _controller,
+    builder: (context, _) => GameTopHud(
+      level: widget.level,
+      controller: _controller,
+      compact: compact,
+    ),
+  );
+
+  /// 底部工具条同样局部重建，道具数量与待命状态随控制器即时刷新。
+  Widget _bottomBar(bool compact) => AnimatedBuilder(
+    animation: _controller,
+    builder: (context, _) => GameBottomBar(
+      compact: compact,
+      propCount: _controller.propCount,
+      activeProp: _controller.activeProp,
+      onProp: _onPropTap,
+      onHint: _controller.canInteract ? _controller.requestHint : null,
+      onRestart: _confirmRestart,
+    ),
+  );
+
+  /// 棋盘上方的悬浮提示；提示消失时缩成空占位，不影响棋盘布局。
+  Widget _promptBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final prompt =
+            _propPrompt ??
+            (_controller.hint != null ? '试试交换闪动的两枚棋子' : null);
+        if (!_controller.canInteract || prompt == null) {
+          return const SizedBox.shrink();
+        }
+        return IgnorePointer(
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: colors.outline),
+              ),
+              child: Text(
+                prompt,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
