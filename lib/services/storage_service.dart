@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/daily_challenge.dart';
 import '../game/logic_rate.dart';
+import '../game/progress.dart';
 import '../game/props.dart';
 import '../theme/skins.dart';
 import '../utils/constants.dart';
@@ -148,31 +149,10 @@ class StorageService {
   /// 已解锁的最大关卡（从 1 开始）。
   int get unlockedLevel => _p.getInt(AppConstants.prefKeyUnlocked) ?? 1;
 
-  int totalStars(int levelCount) {
-    var total = 0;
-    for (var id = 1; id <= levelCount; id++) {
-      total += starsFor(id);
-    }
-    return total;
-  }
-
-  /// 至少通关一次的关卡数量。
-  int clearedCount(int levelCount) {
-    var count = 0;
-    for (var id = 1; id <= levelCount; id++) {
-      if (starsFor(id) > 0) count++;
-    }
-    return count;
-  }
-
-  /// 拿到三星的关卡数量。
-  int perfectCount(int levelCount) {
-    var count = 0;
-    for (var id = 1; id <= levelCount; id++) {
-      if (starsFor(id) >= 3) count++;
-    }
-    return count;
-  }
+  /// 一次遍历汇总关卡进度，福星、通关与三星数量共用这一份结果。
+  LevelProgress scanProgress(int levelCount) => LevelProgress.scan([
+    for (var id = 1; id <= levelCount; id++) starsFor(id),
+  ], unlocked: unlockedLevel);
 
   /// 记录通关结果：星级与最高分只增不减，并解锁下一关。
   Future<void> recordLevelResult({

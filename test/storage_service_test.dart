@@ -31,8 +31,10 @@ void main() {
     expect(storage.starsFor(1), 2);
     expect(storage.bestScoreFor(1), 3200);
     expect(storage.unlockedLevel, 2);
-    expect(storage.totalStars(kLevels.length), 2);
-    expect(storage.clearedCount(kLevels.length), 1);
+    final progress = storage.scanProgress(kLevels.length);
+    expect(progress.totalStars, 2);
+    expect(progress.cleared, 1);
+    expect(progress.starsOf(1), 2);
 
     // 更差的成绩不会覆盖旧记录。
     await storage.recordLevelResult(

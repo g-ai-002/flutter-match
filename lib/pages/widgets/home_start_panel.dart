@@ -15,9 +15,6 @@ class HomeStartPanel extends StatelessWidget {
   const HomeStartPanel({
     super.key,
     required this.settings,
-    required this.unlocked,
-    required this.cleared,
-    required this.totalStars,
     required this.daily,
     required this.onStart,
     required this.onStartDaily,
@@ -27,9 +24,6 @@ class HomeStartPanel extends StatelessWidget {
   });
 
   final SettingsProvider settings;
-  final int unlocked;
-  final int cleared;
-  final int totalStars;
   final DailyChallenge daily;
   final ValueChanged<Level> onStart;
   final VoidCallback onStartDaily;
@@ -41,9 +35,11 @@ class HomeStartPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final progress = settings.progress;
+    final unlocked = progress.unlocked.clamp(1, kLevels.length);
     final level = levelById(unlocked);
-    final bestStars = settings.starsFor(level.id);
-    final maxStars = kLevels.length * 3;
+    final bestStars = progress.starsOf(level.id);
+    final maxStars = progress.maxStars;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -70,7 +66,7 @@ class HomeStartPanel extends StatelessWidget {
                 accent: appRed,
               ),
               title: '关卡选择',
-              subtitle: '${kLevels.length} 关 · 已通关 $cleared',
+              subtitle: '${kLevels.length} 关 · 已通关 ${progress.cleared}',
               onTap: onOpenLevels,
             );
             final settingsTile = EntryTile(
@@ -104,7 +100,7 @@ class HomeStartPanel extends StatelessWidget {
           ),
           title: '成就',
           subtitle:
-              '已解锁 ${unlockedAchievementCount(settings.playerStats(kLevels.length))}'
+              '已解锁 ${unlockedAchievementCount(settings.playerStats)}'
               ' / ${kAchievements.length}',
           onTap: onOpenAchievements,
         ),
@@ -121,13 +117,13 @@ class HomeStartPanel extends StatelessWidget {
               const Icon(Icons.star_rounded, size: 18, color: appGoldBright),
               const SizedBox(width: 6),
               Text(
-                '$totalStars / $maxStars',
+                '${progress.totalStars} / $maxStars',
                 style: theme.textTheme.titleSmall,
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: StarProgressBar(
-                  value: maxStars == 0 ? 0 : totalStars / maxStars,
+                  value: maxStars == 0 ? 0 : progress.totalStars / maxStars,
                 ),
               ),
             ],

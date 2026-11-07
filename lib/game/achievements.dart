@@ -1,3 +1,5 @@
+import 'progress.dart';
+
 /// 成就统计口径：全部来自本地进度与累计计数器。
 enum AchievementMetric {
   cleared('通关关卡'),
@@ -23,6 +25,23 @@ class PlayerStats {
     this.iceBroken = 0,
     this.propsUsed = 0,
   });
+
+  /// 关卡进度直接取自 [LevelProgress]，累计计数器单独传入。
+  factory PlayerStats.fromProgress(
+    LevelProgress progress, {
+    int dailyClears = 0,
+    int maxCombo = 0,
+    int iceBroken = 0,
+    int propsUsed = 0,
+  }) => PlayerStats(
+    cleared: progress.cleared,
+    perfect: progress.perfect,
+    stars: progress.totalStars,
+    dailyClears: dailyClears,
+    maxCombo: maxCombo,
+    iceBroken: iceBroken,
+    propsUsed: propsUsed,
+  );
 
   final int cleared;
   final int perfect;

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../game/achievements.dart';
+import '../game/levels.dart';
 import '../game/logic_rate.dart';
+import '../game/progress.dart';
 import '../game/props.dart';
 import '../game/scoring.dart';
 import '../models/level.dart';
@@ -50,19 +52,32 @@ class SettingsProvider extends ChangeNotifier {
   AppSkin get skin => _storage.skin;
   Future<void> setSkin(AppSkin value) => _update(() => _storage.setSkin(value));
 
-  /// 当前进度对应的成就统计。
-  PlayerStats playerStats(int levelCount) => PlayerStats(
-    cleared: _storage.clearedCount(levelCount),
-    perfect: _storage.perfectCount(levelCount),
-    stars: _storage.totalStars(levelCount),
-    dailyClears: _storage.dailyClears,
-    maxCombo: _storage.maxCombo,
-    iceBroken: _storage.iceBroken,
-    propsUsed: _storage.propsUsed,
-  );
+  LevelProgress? _progress;
+  PlayerStats? _stats;
+  List<AchievementStatus>? _achievements;
 
-  List<AchievementStatus> achievements(int levelCount) =>
-      evaluateAchievements(playerStats(levelCount));
+  /// 关卡进度汇总（福星、通关、三星与解锁），写入后按需重建。
+  LevelProgress get progress =>
+      _progress ??= _storage.scanProgress(kLevels.length);
+
+  /// 成就统计：关卡进度取自 [progress]，累计计数器来自本地存储。
+  PlayerStats get playerStats {
+    final cached = _stats;
+    if (cached != null) return cached;
+    return _stats = PlayerStats.fromProgress(
+      progress,
+      dailyClears: _storage.dailyClears,
+      maxCombo: _storage.maxCombo,
+      iceBroken: _storage.iceBroken,
+      propsUsed: _storage.propsUsed,
+    );
+  }
+
+  List<AchievementStatus> get achievements =>
+      _achievements ??= evaluateAchievements(playerStats);
+
+  int get totalStars => progress.totalStars;
+  int get clearedCount => progress.cleared;
 
   /// 对局结束时累计成就统计。
   Future<void> recordStats({
@@ -75,14 +90,13 @@ class SettingsProvider extends ChangeNotifier {
       iceBroken: iceBroken,
       propsUsed: propsUsed,
     );
+    _invalidateStats();
     notifyListeners();
   }
 
-  int starsFor(int levelId) => _storage.starsFor(levelId);
+  int starsFor(int levelId) => progress.starsOf(levelId);
   int bestScoreFor(int levelId) => _storage.bestScoreFor(levelId);
   int get unlockedLevel => _storage.unlockedLevel;
-  int totalStars(int levelCount) => _storage.totalStars(levelCount);
-  int clearedCount(int levelCount) => _storage.clearedCount(levelCount);
 
   /// 福币余额与道具库存。
   int get coins => _storage.coins;
@@ -132,14 +146,31 @@ class SettingsProvider extends ChangeNotifier {
         levelCount: levelCount,
       );
     }
+    _invalidateProgress();
     notifyListeners();
     return dailyReward;
   }
 
-  Future<void> resetProgress() => _update(_storage.resetProgress);
+  Future<void> resetProgress() async {
+    await _storage.resetProgress();
+    _invalidateProgress();
+    notifyListeners();
+  }
 
   void _syncFeedback() =>
       SoundService.configure(sound: soundEnabled, haptics: hapticsEnabled);
+
+  /// 关卡星级变化后同时失效进度、成就统计与成就列表。
+  void _invalidateProgress() {
+    _progress = null;
+    _invalidateStats();
+  }
+
+  /// 只失效成就相关缓存，关卡进度保持不变。
+  void _invalidateStats() {
+    _stats = null;
+    _achievements = null;
+  }
 
   /// 写入偏好后统一通知界面，避免每个 setter 重复一遍。
   Future<void> _update(Future<void> Function() write) async {

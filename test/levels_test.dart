@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/game/chapters.dart';
 import 'package:fortune_match/game/levels.dart';
+import 'package:fortune_match/game/progress.dart';
 import 'package:fortune_match/models/level.dart';
 import 'package:fortune_match/models/tile.dart';
 
@@ -82,9 +83,22 @@ void main() {
     }
   });
 
-  test('章节福星统计按区间累加', () {
+  test('章节视图按区间汇总福星，关卡与章节一一对应', () {
     final stars = {1: 3, 2: 2, 25: 1, 26: 3};
-    expect(starsInChapter(kChapters.first, (id) => stars[id] ?? 0), 6);
-    expect(starsInChapter(kChapters.last, (id) => stars[id] ?? 0), 3);
+    final progress = LevelProgress.scan([
+      for (var id = 1; id <= kLevels.length; id++) stars[id] ?? 0,
+    ], unlocked: 3);
+    final views = chapterViews(progress);
+
+    expect(views, hasLength(kChapters.length));
+    expect(views.first.chapter, same(kChapters.first));
+    expect(views.first.stars, 6);
+    expect(views.first.maxStars, 75);
+    expect(views.first.levels, hasLength(25));
+    expect(views.first.levels.first.id, 1);
+    expect(views.first.levels.last.id, 25);
+    expect(views.last.stars, 3);
+    expect(views.last.levels.first.id, 26);
+    expect(views.fold<int>(0, (sum, view) => sum + view.maxStars), 150);
   });
 }

@@ -117,7 +117,7 @@ class _GamePageState extends State<GamePage> {
       propsUsed: _controller.propsUsed,
     );
     final unlocked = [
-      for (final status in _settings.achievements(kLevels.length))
+      for (final status in _settings.achievements)
         if (status.unlocked && !before.contains(status.achievement.id))
           status.achievement.title,
     ];
@@ -133,7 +133,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   Set<String> _unlockedAchievementIds() => {
-    for (final status in _settings.achievements(kLevels.length))
+    for (final status in _settings.achievements)
       if (status.unlocked) status.achievement.id,
   };
 

@@ -73,7 +73,7 @@ void main() {
     );
     await settings.recordStats(maxCombo: 4, iceBroken: 12, propsUsed: 2);
 
-    final stats = settings.playerStats(kLevels.length);
+    final stats = settings.playerStats;
     expect(stats.cleared, 2);
     expect(stats.perfect, 1);
     expect(stats.stars, 5);

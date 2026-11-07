@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../game/daily_challenge.dart';
-import '../game/levels.dart';
 import '../models/level.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
@@ -46,9 +45,6 @@ class HomePage extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final totalStars = settings.totalStars(kLevels.length);
-    final unlocked = settings.unlockedLevel.clamp(1, kLevels.length);
-    final cleared = settings.clearedCount(kLevels.length);
     final daily = DailyChallenge.of(DateTime.now());
 
     return Scaffold(
@@ -87,9 +83,6 @@ class HomePage extends StatelessWidget {
                                   context,
                                   settings: settings,
                                   daily: daily,
-                                  unlocked: unlocked,
-                                  cleared: cleared,
-                                  totalStars: totalStars,
                                 ),
                               ),
                             ],
@@ -101,9 +94,6 @@ class HomePage extends StatelessWidget {
                             context,
                             settings: settings,
                             daily: daily,
-                            unlocked: unlocked,
-                            cleared: cleared,
-                            totalStars: totalStars,
                           ),
                         ],
                         const SizedBox(height: 20),
@@ -129,14 +119,8 @@ class HomePage extends StatelessWidget {
     BuildContext context, {
     required SettingsProvider settings,
     required DailyChallenge daily,
-    required int unlocked,
-    required int cleared,
-    required int totalStars,
   }) => HomeStartPanel(
     settings: settings,
-    unlocked: unlocked,
-    cleared: cleared,
-    totalStars: totalStars,
     daily: daily,
     onStart: (level) => _openGame(context, level),
     onStartDaily: () => _openGame(context, daily.level),

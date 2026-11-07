@@ -14,7 +14,7 @@ export 'tile_art.dart';
 LinearGradient sceneGradient(bool dark) => LinearGradient(
   begin: Alignment.topCenter,
   end: Alignment.bottomCenter,
-  colors: activeSceneColors(dark),
+  colors: SkinState.active.scene(dark),
 );
 
 ThemeData buildLightTheme({String? fontFamily}) {

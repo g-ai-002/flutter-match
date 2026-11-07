@@ -19,17 +19,20 @@ class TilePalette {
 
 /// 主题皮肤：棋子配色与场景底色成套切换，按累计福星解锁。
 enum AppSkin {
-  cinnabar('朱砂福韵', '中国红与暖金', 0),
-  celadon('青瓷月白', '青绿釉色，清润如水', 30),
-  inkstone('墨玉灯影', '墨底朱砂，夜色灯影', 60);
+  cinnabar('朱砂福韵', '中国红与暖金', 0, _cinnabar),
+  celadon('青瓷月白', '青绿釉色，清润如水', 30, _celadon),
+  inkstone('墨玉灯影', '墨底朱砂，夜色灯影', 60, _inkstone);
 
-  const AppSkin(this.label, this.subtitle, this.requiredStars);
+  const AppSkin(this.label, this.subtitle, this.requiredStars, this.spec);
 
   final String label;
   final String subtitle;
 
   /// 解锁所需累计福星，0 表示默认可用。
   final int requiredStars;
+
+  /// 该皮肤的完整视觉配置。
+  final SkinSpec spec;
 
   static AppSkin byName(String? name) => values.firstWhere(
     (skin) => skin.name == name,
@@ -181,21 +184,20 @@ const SkinSpec _inkstone = SkinSpec(
   sceneDark: [Color(0xFF1C1916), Color(0xFF0B0A08)],
 );
 
-const Map<AppSkin, SkinSpec> kSkinSpecs = {
-  AppSkin.cinnabar: _cinnabar,
-  AppSkin.celadon: _celadon,
-  AppSkin.inkstone: _inkstone,
-};
+/// 当前皮肤状态：界面、棋盘与绘制缓存共用这一份配色来源。
+class SkinState {
+  SkinState([this._skin = AppSkin.cinnabar]);
 
-AppSkin _activeSkin = AppSkin.cinnabar;
+  /// 应用全局激活的皮肤；由 App 按用户偏好同步。
+  static final SkinState active = SkinState();
 
-AppSkin get activeSkin => _activeSkin;
+  AppSkin _skin;
 
-/// 应用皮肤；由 App 在构建时按用户偏好调用。
-void activateSkin(AppSkin skin) => _activeSkin = skin;
+  AppSkin get skin => _skin;
+  SkinSpec get spec => _skin.spec;
+  Map<TileType, TilePalette> get tilePalettes => spec.tiles;
 
-Map<TileType, TilePalette> get activeTilePalettes =>
-    kSkinSpecs[_activeSkin]!.tiles;
+  void select(AppSkin value) => _skin = value;
 
-List<Color> activeSceneColors(bool dark) =>
-    kSkinSpecs[_activeSkin]!.scene(dark);
+  List<Color> scene(bool dark) => spec.scene(dark);
+}

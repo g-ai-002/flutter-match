@@ -123,9 +123,7 @@ class SettingsPage extends StatelessWidget {
                           _SkinCard(
                             skin: skin,
                             selected: settings.skin == skin,
-                            locked:
-                                settings.totalStars(kLevels.length) <
-                                skin.requiredStars,
+                            locked: settings.totalStars < skin.requiredStars,
                             onTap: () => _selectSkin(context, settings, skin),
                           ),
                       ],
@@ -143,7 +141,7 @@ class SettingsPage extends StatelessWidget {
                           child: Text(
                             '已解锁 ${settings.unlockedLevel.clamp(1, kLevels.length)} / '
                             '${kLevels.length} 关，'
-                            '福星 ${settings.totalStars(kLevels.length)} 颗',
+                            '福星 ${settings.totalStars} 颗',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colors.onSurfaceVariant,
                             ),
@@ -262,7 +260,7 @@ class SettingsPage extends StatelessWidget {
     SettingsProvider settings,
     AppSkin skin,
   ) {
-    if (settings.totalStars(kLevels.length) < skin.requiredStars) {
+    if (settings.totalStars < skin.requiredStars) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('累计收集 ${skin.requiredStars} 颗福星后解锁')),
       );
@@ -313,7 +311,7 @@ class _SkinCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final spec = kSkinSpecs[skin]!;
+    final spec = skin.spec;
     final swatches = spec.tiles.values.take(4).toList();
     return Material(
       color: Colors.transparent,

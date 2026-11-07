@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../game/achievements.dart';
-import '../game/levels.dart';
 import '../providers/settings_provider.dart';
 import '../theme/palette.dart';
 import 'widgets/star_progress.dart';
@@ -14,7 +13,7 @@ class AchievementsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    final statuses = settings.achievements(kLevels.length);
+    final statuses = settings.achievements;
     final unlocked = statuses.where((status) => status.unlocked).length;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;

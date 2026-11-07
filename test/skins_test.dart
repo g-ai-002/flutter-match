@@ -3,12 +3,11 @@ import 'package:fortune_match/models/tile.dart';
 import 'package:fortune_match/theme/app_theme.dart';
 
 void main() {
-  tearDown(() => activateSkin(AppSkin.cinnabar));
+  tearDown(() => SkinState.active.select(AppSkin.cinnabar));
 
   test('每套皮肤覆盖全部棋子且配色互不相同', () {
-    expect(kSkinSpecs, hasLength(AppSkin.values.length));
     for (final skin in AppSkin.values) {
-      final spec = kSkinSpecs[skin]!;
+      final spec = skin.spec;
       expect(spec.tiles.keys.toSet(), TileType.values.toSet());
       expect(spec.sceneLight, hasLength(2));
       expect(spec.sceneDark, hasLength(2));
@@ -17,24 +16,34 @@ void main() {
         expect(palette.base, isNot(palette.deep));
       }
     }
-    final cinnabar = kSkinSpecs[AppSkin.cinnabar]!.tiles[TileType.coin]!.base;
-    final celadon = kSkinSpecs[AppSkin.celadon]!.tiles[TileType.coin]!.base;
+    final cinnabar = AppSkin.cinnabar.spec.tiles[TileType.coin]!.base;
+    final celadon = AppSkin.celadon.spec.tiles[TileType.coin]!.base;
     expect(cinnabar, isNot(celadon));
   });
 
   test('切换皮肤会替换棋子与场景配色', () {
-    activateSkin(AppSkin.cinnabar);
+    SkinState.active.select(AppSkin.cinnabar);
     final before = kTilePalettes[TileType.coin]!.base;
     final light = sceneGradient(false).colors.first;
-    expect(light, kSkinSpecs[AppSkin.cinnabar]!.sceneLight.first);
+    expect(light, AppSkin.cinnabar.spec.sceneLight.first);
 
-    activateSkin(AppSkin.celadon);
+    SkinState.active.select(AppSkin.celadon);
     expect(kTilePalettes[TileType.coin]!.base, isNot(before));
     expect(
       sceneGradient(false).colors.first,
-      kSkinSpecs[AppSkin.celadon]!.sceneLight.first,
+      AppSkin.celadon.spec.sceneLight.first,
     );
-    expect(activeSkin, AppSkin.celadon);
+    expect(SkinState.active.skin, AppSkin.celadon);
+  });
+
+  test('皮肤状态实例独立，配色随选择同步', () {
+    final state = SkinState(AppSkin.inkstone);
+    expect(state.spec, AppSkin.inkstone.spec);
+    state.select(AppSkin.celadon);
+    expect(state.skin, AppSkin.celadon);
+    expect(state.tilePalettes, AppSkin.celadon.spec.tiles);
+    expect(state.scene(true), AppSkin.celadon.spec.sceneDark);
+    expect(SkinState.active.skin, AppSkin.cinnabar);
   });
 
   test('皮肤按累计福星解锁，未知名称回退默认', () {

@@ -8,7 +8,7 @@ import 'skins.dart';
 export 'skins.dart' show AppSkin, SkinSpec, TilePalette;
 
 /// 当前皮肤下的棋子配色，切换皮肤后自动指向新配色。
-Map<TileType, TilePalette> get kTilePalettes => activeTilePalettes;
+Map<TileType, TilePalette> get kTilePalettes => SkinState.active.tilePalettes;
 
 /// 棋子文字缓存：同一尺寸与颜色的纹样只排版一次。
 class TileGlyphCache {

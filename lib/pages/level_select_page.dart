@@ -18,8 +18,9 @@ class LevelSelectPage extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final totalStars = settings.totalStars(kLevels.length);
-    final maxStars = kLevels.length * 3;
+    final progress = settings.progress;
+    final chapters = chapterViews(progress);
+    final maxStars = progress.maxStars;
 
     return Scaffold(
       appBar: AppBar(title: const Text('关卡选择')),
@@ -55,14 +56,16 @@ class LevelSelectPage extends StatelessWidget {
                           Text('收集福星', style: theme.textTheme.titleSmall),
                           const Spacer(),
                           Text(
-                            '$totalStars / $maxStars',
+                            '${progress.totalStars} / $maxStars',
                             style: theme.textTheme.titleSmall,
                           ),
                           const SizedBox(width: 10),
                           SizedBox(
                             width: wide ? 180 : 90,
                             child: StarProgressBar(
-                              value: maxStars == 0 ? 0 : totalStars / maxStars,
+                              value: maxStars == 0
+                                  ? 0
+                                  : progress.totalStars / maxStars,
                             ),
                           ),
                         ],
@@ -70,13 +73,14 @@ class LevelSelectPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                for (final chapter in kChapters) ...[
+                for (final view in chapters) ...[
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
                     sliver: SliverToBoxAdapter(
                       child: _ChapterHeader(
-                        chapter: chapter,
-                        stars: starsInChapter(chapter, settings.starsFor),
+                        chapter: view.chapter,
+                        stars: view.stars,
+                        maxStars: view.maxStars,
                       ),
                     ),
                   ),
@@ -91,12 +95,11 @@ class LevelSelectPage extends StatelessWidget {
                             childAspectRatio: 0.92,
                           ),
                       delegate: SliverChildBuilderDelegate((context, index) {
-                        final chapterLevels = levelsOfChapter(chapter);
-                        final level = chapterLevels[index];
-                        final unlocked = level.id <= settings.unlockedLevel;
+                        final level = view.levels[index];
+                        final unlocked = level.id <= progress.unlocked;
                         return _LevelCard(
                           level: level,
-                          stars: settings.starsFor(level.id),
+                          stars: progress.starsOf(level.id),
                           bestScore: settings.bestScoreFor(level.id),
                           unlocked: unlocked,
                           onTap: unlocked
@@ -107,7 +110,7 @@ class LevelSelectPage extends StatelessWidget {
                                 )
                               : null,
                         );
-                      }, childCount: chapter.levelCount),
+                      }, childCount: view.levels.length),
                     ),
                   ),
                 ],
@@ -122,16 +125,20 @@ class LevelSelectPage extends StatelessWidget {
 }
 
 class _ChapterHeader extends StatelessWidget {
-  const _ChapterHeader({required this.chapter, required this.stars});
+  const _ChapterHeader({
+    required this.chapter,
+    required this.stars,
+    required this.maxStars,
+  });
 
   final Chapter chapter;
   final int stars;
+  final int maxStars;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final maxStars = chapter.levelCount * 3;
     return Row(
       children: [
         Container(

@@ -1,6 +1,7 @@
 import '../models/level.dart';
 import 'chapters.dart';
 import 'level_catalog.dart';
+import 'progress.dart';
 
 /// 关卡索引：查询、跳关等访问逻辑；关卡数据见 `level_catalog.dart`。
 final List<Level> kLevels = buildLevelCatalog();
@@ -20,16 +21,38 @@ Chapter chapterOfLevel(int id) => kChapters.firstWhere(
   orElse: () => kChapters.first,
 );
 
-List<Level> levelsOfChapter(Chapter chapter) => [
-  for (final level in kLevels)
-    if (chapter.contains(level.id)) level,
-];
+/// 章节关卡表：启动时按章节一次性分好组，界面不再逐项扫描全量关卡。
+final Map<int, List<Level>> _levelsByChapter = {
+  for (final chapter in kChapters)
+    chapter.id: [
+      for (final level in kLevels)
+        if (chapter.contains(level.id)) level,
+    ],
+};
 
-/// 章节内已获福星与满星数。
-int starsInChapter(Chapter chapter, int Function(int levelId) starsFor) {
-  var total = 0;
-  for (var id = chapter.fromLevel; id <= chapter.toLevel; id++) {
-    total += starsFor(id);
-  }
-  return total;
+List<Level> levelsOfChapter(Chapter chapter) =>
+    _levelsByChapter[chapter.id] ?? const [];
+
+/// 章节视图：章节定义、本章关卡与福星进度，供关卡选择页一次构建。
+class ChapterView {
+  const ChapterView({
+    required this.chapter,
+    required this.levels,
+    required this.stars,
+  });
+
+  final Chapter chapter;
+  final List<Level> levels;
+  final int stars;
+
+  int get maxStars => levels.length * 3;
 }
+
+List<ChapterView> chapterViews(LevelProgress progress) => [
+  for (final chapter in kChapters)
+    ChapterView(
+      chapter: chapter,
+      levels: levelsOfChapter(chapter),
+      stars: progress.starsIn(chapter.fromLevel, chapter.toLevel),
+    ),
+];
