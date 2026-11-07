@@ -1,0 +1,56 @@
+//当 USE_MIRRORPROXY=true 时，全局替换所有仓库为内网 Maven 镜像代理。
+//init script 对所有 Gradle 构建生效，包括 Flutter SDK 的 includeBuild 复合构建。
+//未设置时不做任何操作，走 Gradle/Flutter 默认源。
+
+def useMirrorProxy = System.getenv('USE_MIRRORPROXY') == 'true'
+
+if (useMirrorProxy) {
+    def mirrorMaven = 'http://192.168.31.120:1001/maven/'
+
+    // 为所有 Settings（含 included builds）配置 pluginManagement 和 dependencyResolutionManagement
+    // AGP 9.x 默认 PREFER_SETTINGS 模式，禁止 project 级别 repositories，必须在 settings 级别配置
+    beforeSettings { settings ->
+        settings.pluginManagement {
+            repositories {
+                clear()
+                maven {
+                    url mirrorMaven
+                    // 内网镜像只提供 HTTP，没有 TLS，Gradle 需显式允许不安全协议
+                    allowInsecureProtocol = true
+                }
+                mavenCentral()
+                google()
+                gradlePluginPortal()
+            }
+        }
+        settings.dependencyResolutionManagement {
+            repositories {
+                clear()
+                maven {
+                    url mirrorMaven
+                    // 内网镜像只提供 HTTP，没有 TLS，Gradle 需显式允许不安全协议
+                    allowInsecureProtocol = true
+                }
+                mavenCentral()
+                google()
+            }
+        }
+    }
+
+    // buildscript.repositories 不受 PREFER_SETTINGS 限制，仍可在 project 级别配置
+    allprojects {
+        buildscript {
+            repositories {
+                clear()
+                maven {
+                    url mirrorMaven
+                    // 内网镜像只提供 HTTP，没有 TLS，Gradle 需显式允许不安全协议
+                    allowInsecureProtocol = true
+                }
+                mavenCentral()
+                google()
+                gradlePluginPortal()
+            }
+        }
+    }
+}
