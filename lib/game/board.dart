@@ -11,6 +11,9 @@ class GameBoard {
   final List<Tile?> tiles;
   final List<int> ice;
 
+  /// 冰层版本号：任意一格的冰层增减都会自增，供渲染层缓存冰面坐标。
+  int iceRevision = 0;
+
   int get length => tiles.length;
 
   int indexOf(int col, int row) => row * cols + col;

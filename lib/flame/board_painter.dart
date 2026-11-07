@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../game/match_controller.dart';
 import '../theme/palette.dart';
 import 'board_layout.dart';
+import 'easing.dart';
 import 'spark.dart';
 import 'tile_sprite_cache.dart';
 import 'tile_visual.dart';
@@ -16,6 +17,11 @@ import 'tile_visual.dart';
 /// 只负责画，不持有动画状态；视觉列表与计时由 [BoardComponent] 维护。
 /// 静止画面（无补间、无粒子、无提示闪烁）整块缓存为 Picture，空闲帧只画一次；
 /// 底板与棋盘格同样单独缓存，避免每帧重建渐变与底纹。
+///
+/// 热路径上的取舍：
+/// - 静止棋子只做一次 translate 就贴图，跳过缩放与图层；
+/// - 格子矩形、冰面坐标在排版或冰层变化时预计算，逐帧不再扫描整盘；
+/// - 贴图按定长数组下标取用，每帧只同步一次格子尺寸。
 class BoardPainter {
   BoardPainter({
     required this.controller,
@@ -32,6 +38,7 @@ class BoardPainter {
   final List<TileVisual> _order = [];
   final Paint _ringPaint = Paint()..style = PaintingStyle.stroke;
   final Paint _selectionPaint = Paint();
+  final Paint _fadePaint = Paint();
   final Paint _sparkRingPaint = Paint()..style = PaintingStyle.stroke;
   final Paint _sparkDotPaint = Paint();
 
@@ -44,9 +51,17 @@ class BoardPainter {
   int _staticCellKey = -1;
   bool _staticDark = false;
 
+  /// 冰面格子按 `index * 4 + layers` 打包，仅在冰层变化时重建。
+  List<int> _iceCells = const [];
+  int _iceRevision = -1;
+
   /// 静态画面重建次数，供性能测试断言缓存生效。
   @visibleForTesting
   int staticFrameBuilds = 0;
+
+  /// 冰面坐标表重建次数，供性能测试断言没有逐帧扫描。
+  @visibleForTesting
+  int iceListBuilds = 0;
 
   /// 格子尺寸按 1/4 像素量化，和贴图缓存保持一致。
   int get _cellKey => (layout.cell * 4).round();
@@ -103,6 +118,8 @@ class BoardPainter {
     _panel?.dispose();
     _panel = null;
     _panelCellKey = -1;
+    _iceCells = const [];
+    _iceRevision = -1;
   }
 
   /// 丢弃缓存的静止画面：字体晚到或贴图重建后需要重新录制。
@@ -119,6 +136,7 @@ class BoardPainter {
     required double time,
     required bool dark,
   }) {
+    sprites.beginFrame(layout.cell);
     _paintPanel(canvas, dark);
     _paintTiles(canvas, visuals);
     _paintIce(canvas);
@@ -226,24 +244,39 @@ class BoardPainter {
 
   void _paintTile(Canvas canvas, TileVisual visual) {
     final cell = layout.cell;
-    final center = Offset(
-      layout.left + (visual.col + 0.5) * cell,
-      layout.top + (visual.row + 0.5) * cell,
-    );
-    final rect = Rect.fromCenter(center: center, width: cell, height: cell);
+    final sprite = sprites.tile(visual.type, visual.special, cell);
     final selected = controller.selected == visual.cell;
     final scale = visual.scale * (selected ? 1.08 : 1.0);
     final opacity = visual.opacity;
-    final sprite = sprites.tile(visual.type, visual.special, cell);
 
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.scale(scale);
-    canvas.translate(-center.dx, -center.dy);
+    // 最常见的情况：静止、未选中、不透明，只需一次平移就能贴图。
+    if (!selected && scale == 1 && opacity >= 0.999) {
+      canvas
+        ..save()
+        ..translate(
+          layout.left + visual.col * cell,
+          layout.top + visual.row * cell,
+        )
+        ..drawPicture(sprite)
+        ..restore();
+      return;
+    }
+
+    final centerX = layout.left + (visual.col + 0.5) * cell;
+    final centerY = layout.top + (visual.row + 0.5) * cell;
+    canvas
+      ..save()
+      ..translate(centerX, centerY);
+    if (scale != 1) canvas.scale(scale);
     if (opacity < 0.999) {
+      _fadePaint.color = Colors.white.withValues(alpha: opacity);
       canvas.saveLayer(
-        rect.inflate(cell * 0.2),
-        Paint()..color = Colors.white.withValues(alpha: opacity),
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: cell,
+          height: cell,
+        ).inflate(cell * 0.2),
+        _fadePaint,
       );
     }
     if (selected) {
@@ -252,30 +285,49 @@ class BoardPainter {
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * 0.1);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          rect.deflate(cell * 0.06),
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: cell,
+            height: cell,
+          ).deflate(cell * 0.06),
           Radius.circular(cell * 0.26),
         ),
         _selectionPaint,
       );
     }
-    canvas.drawPicture(sprite);
+    canvas
+      ..translate(-cell * 0.5, -cell * 0.5)
+      ..drawPicture(sprite);
     if (opacity < 0.999) canvas.restore();
     canvas.restore();
   }
 
   void _paintIce(Canvas canvas) {
-    final board = controller.board;
+    final revision = controller.board.iceRevision;
+    if (revision != _iceRevision) {
+      _iceRevision = revision;
+      final ice = controller.board.ice;
+      final cells = <int>[];
+      for (var index = 0; index < ice.length; index++) {
+        final layers = ice[index];
+        if (layers > 0) cells.add(index * 4 + layers);
+      }
+      _iceCells = cells;
+      iceListBuilds++;
+    }
+    if (_iceCells.isEmpty) return;
+
     final cell = layout.cell;
     final left = layout.left;
     final top = layout.top;
     final cols = layout.cols;
-    for (var index = 0; index < board.length; index++) {
-      final ice = board.ice[index];
-      if (ice <= 0) continue;
+    for (final packed in _iceCells) {
+      final index = packed >> 2;
+      final layers = packed & 3;
       canvas
         ..save()
         ..translate(left + (index % cols) * cell, top + (index ~/ cols) * cell)
-        ..drawPicture(sprites.ice(ice, cell))
+        ..drawPicture(sprites.ice(layers, cell))
         ..restore();
     }
   }
@@ -297,15 +349,21 @@ class BoardPainter {
     if (hint == null) return;
     final pulse = 0.5 + 0.5 * math.sin(time * 7);
     final color = Color.lerp(appRedDeep, appGoldBright, pulse)!;
-    for (final cell in [hint.a, hint.b]) {
-      _paintRing(
-        canvas,
-        layout.cellRect(cell),
-        color,
-        width: layout.cell * (0.035 + 0.02 * pulse),
-        inset: layout.cell * 0.03,
-      );
-    }
+    final width = layout.cell * (0.035 + 0.02 * pulse);
+    _paintRing(
+      canvas,
+      layout.cellRect(hint.a),
+      color,
+      width: width,
+      inset: layout.cell * 0.03,
+    );
+    _paintRing(
+      canvas,
+      layout.cellRect(hint.b),
+      color,
+      width: width,
+      inset: layout.cell * 0.03,
+    );
   }
 
   void _paintRing(
@@ -330,7 +388,7 @@ class BoardPainter {
     for (final spark in sparks) {
       final t = spark.progress;
       final fade = (1 - t).clamp(0.0, 1.0);
-      final radius = cell * (0.08 + 0.42 * Curves.easeOutQuad.transform(t));
+      final radius = cell * (0.08 + 0.42 * EaseTable.easeOutQuad.transform(t));
       _sparkRingPaint
         ..strokeWidth = cell * 0.05 * fade
         ..color = spark.color.withValues(alpha: 0.7 * fade);

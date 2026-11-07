@@ -87,6 +87,7 @@ class MatchEngine {
       board.tiles[index] = null;
       board.ice[index] = level.ice[index] ?? 0;
     }
+    board.iceRevision++;
     _fillInitial();
   }
 
@@ -313,6 +314,7 @@ class MatchEngine {
         );
         if (board.ice[index] > 0) {
           board.ice[index]--;
+          board.iceRevision++;
           iceChanges.add(IceChange(index: index, layers: board.ice[index]));
         }
         board.tiles[index] = null;
