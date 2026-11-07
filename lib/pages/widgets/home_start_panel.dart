@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../game/daily_challenge.dart';
 import '../../game/levels.dart';
 import '../../models/level.dart';
 import '../../providers/settings_provider.dart';
 import 'entry_tile.dart';
 import 'star_row.dart';
 
-/// 首页主行动区：继续闯关、关卡选择、设置与福星总进度。
+/// 首页主行动区：继续闯关、每日挑战、关卡选择、设置与福星总进度。
 class HomeStartPanel extends StatelessWidget {
   const HomeStartPanel({
     super.key,
@@ -14,7 +15,9 @@ class HomeStartPanel extends StatelessWidget {
     required this.unlocked,
     required this.cleared,
     required this.totalStars,
+    required this.daily,
     required this.onStart,
+    required this.onStartDaily,
     required this.onOpenLevels,
     required this.onOpenSettings,
   });
@@ -23,7 +26,9 @@ class HomeStartPanel extends StatelessWidget {
   final int unlocked;
   final int cleared;
   final int totalStars;
+  final DailyChallenge daily;
   final ValueChanged<Level> onStart;
+  final VoidCallback onStartDaily;
   final VoidCallback onOpenLevels;
   final VoidCallback onOpenSettings;
 
@@ -39,6 +44,13 @@ class HomeStartPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ContinueCard(level: level, unlocked: unlocked, stars: bestStars, onTap: () => onStart(level)),
+        const SizedBox(height: 10),
+        _DailyCard(
+          daily: daily,
+          stars: settings.dailyStars(daily.dateKey),
+          bestScore: settings.dailyBestScore(daily.dateKey),
+          onTap: onStartDaily,
+        ),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -111,6 +123,119 @@ class HomeStartPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 每日挑战入口：今日目标、当日成绩与挑战按钮。
+class _DailyCard extends StatelessWidget {
+  const _DailyCard({
+    required this.daily,
+    required this.stars,
+    required this.bestScore,
+    required this.onTap,
+  });
+
+  final DailyChallenge daily;
+  final int stars;
+  final int bestScore;
+  final VoidCallback onTap;
+
+  static const Color _jade = Color(0xFF3F6B5B);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final done = stars > 0;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: _jade.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _jade.withValues(alpha: 0.45)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _jade.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.event_available_rounded,
+                  size: 20,
+                  color: _jade,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text('每日挑战', style: theme.textTheme.titleSmall),
+                        const SizedBox(width: 6),
+                        Text(
+                          daily.level.name,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 10.5,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      done
+                          ? '今日最佳 $bestScore 分'
+                          : daily.goalSummary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 11.5,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (done)
+                StarRow(stars: stars, size: 15, spacing: 1)
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _jade,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '去挑战',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

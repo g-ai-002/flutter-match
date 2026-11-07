@@ -3,17 +3,20 @@ import 'package:flutter/material.dart';
 import '../../models/tile.dart';
 import '../../theme/tile_art.dart';
 import '../../utils/constants.dart';
+import 'coin_chip.dart';
 
-/// 首页顶栏：品牌标识、玩法说明、深浅色切换与设置入口。
+/// 首页顶栏：品牌标识、福币余额、玩法说明、深浅色切换与设置入口。
 class HomeTopBar extends StatelessWidget {
   const HomeTopBar({
     super.key,
+    required this.coins,
     required this.darkMode,
     required this.onShowRules,
     required this.onToggleDarkMode,
     required this.onOpenSettings,
   });
 
+  final int coins;
   final bool darkMode;
   final VoidCallback onShowRules;
   final VoidCallback onToggleDarkMode;
@@ -65,6 +68,8 @@ class HomeTopBar extends StatelessWidget {
           onPressed: onShowRules,
           icon: const Icon(Icons.help_outline_rounded, size: 21),
         ),
+        CoinChip(coins: coins),
+        const SizedBox(width: 2),
         IconButton(
           tooltip: darkMode ? '切换浅色' : '切换深色',
           onPressed: onToggleDarkMode,

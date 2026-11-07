@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 悬浮操作按钮：底部工具条的提示、重排与重开。
+/// 悬浮操作按钮：底部工具条的提示与重开。
 class HudActionButton extends StatelessWidget {
   const HudActionButton({
     super.key,

@@ -13,10 +13,12 @@ class ResultOverlay extends StatelessWidget {
     required this.onNext,
     required this.onReplay,
     required this.onLevels,
+    this.daily = false,
   });
 
   final MatchController controller;
   final bool hasNext;
+  final bool daily;
   final VoidCallback onNext;
   final VoidCallback onReplay;
   final VoidCallback onLevels;
@@ -64,7 +66,9 @@ class ResultOverlay extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   won
-                      ? (hasNext ? '福运正旺，继续下一关吧' : '全部关卡已通关，福运圆满')
+                      ? (daily
+                            ? '今日挑战已完成，明天再来看看新棋局'
+                            : (hasNext ? '福运正旺，继续下一关吧' : '全部关卡已通关，福运圆满'))
                       : '目标还没完成，调整思路再试一次',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(

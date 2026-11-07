@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../game/daily_challenge.dart';
 import '../game/levels.dart';
 import '../models/level.dart';
 import '../providers/settings_provider.dart';
@@ -44,6 +45,7 @@ class HomePage extends StatelessWidget {
     final totalStars = settings.totalStars(kLevels.length);
     final unlocked = settings.unlockedLevel.clamp(1, kLevels.length);
     final cleared = _clearedCount(settings);
+    final daily = DailyChallenge.of(DateTime.now());
 
     return Scaffold(
       body: Container(
@@ -62,6 +64,7 @@ class HomePage extends StatelessWidget {
                     child: Column(
                       children: [
                         HomeTopBar(
+                          coins: settings.coins,
                           darkMode: settings.darkMode,
                           onShowRules: () => showRulesDialog(context),
                           onToggleDarkMode: () =>
@@ -79,6 +82,7 @@ class HomePage extends StatelessWidget {
                                 child: _startPanel(
                                   context,
                                   settings: settings,
+                                  daily: daily,
                                   unlocked: unlocked,
                                   cleared: cleared,
                                   totalStars: totalStars,
@@ -92,6 +96,7 @@ class HomePage extends StatelessWidget {
                           _startPanel(
                             context,
                             settings: settings,
+                            daily: daily,
                             unlocked: unlocked,
                             cleared: cleared,
                             totalStars: totalStars,
@@ -119,6 +124,7 @@ class HomePage extends StatelessWidget {
   Widget _startPanel(
     BuildContext context, {
     required SettingsProvider settings,
+    required DailyChallenge daily,
     required int unlocked,
     required int cleared,
     required int totalStars,
@@ -127,7 +133,9 @@ class HomePage extends StatelessWidget {
     unlocked: unlocked,
     cleared: cleared,
     totalStars: totalStars,
+    daily: daily,
     onStart: (level) => _openGame(context, level),
+    onStartDaily: () => _openGame(context, daily.level),
     onOpenLevels: () => _openLevels(context),
     onOpenSettings: () => _openSettings(context),
   );

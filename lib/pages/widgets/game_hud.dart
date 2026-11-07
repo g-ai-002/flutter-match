@@ -4,6 +4,7 @@ import '../../game/match_controller.dart';
 import '../../models/level.dart';
 import 'goal_chip.dart';
 import 'hud_action_button.dart';
+import 'prop_bar.dart';
 
 /// 对局页顶部 HUD：返回、关卡信息、剩余步数与目标进度。
 class GameTopHud extends StatelessWidget {
@@ -44,7 +45,7 @@ class GameTopHud extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '第 ${level.id} 关 · ${level.sizeLabel}',
+                      level.heading,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: colors.onSurfaceVariant,
                         letterSpacing: 0.4,
@@ -175,50 +176,66 @@ class RoundIconButton extends StatelessWidget {
   }
 }
 
-/// 对局页底部工具条：提示、重排与重开。
+/// 对局页底部工具条：道具、提示与重开。
 class GameBottomBar extends StatelessWidget {
   const GameBottomBar({
     super.key,
     required this.compact,
+    required this.propCount,
+    required this.activeProp,
+    required this.onProp,
     required this.onHint,
-    required this.onShuffle,
     required this.onRestart,
   });
 
   final bool compact;
+  final int Function(PropKind kind) propCount;
+  final PropKind? activeProp;
+  final ValueChanged<PropKind> onProp;
   final VoidCallback? onHint;
-  final VoidCallback? onShuffle;
   final VoidCallback? onRestart;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: EdgeInsets.fromLTRB(12, 4, 12, compact ? 6 : 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          HudActionButton(
-            icon: Icons.lightbulb_outline_rounded,
-            label: '提示',
-            highlight: true,
-            compact: compact,
-            onPressed: onHint,
-          ),
-          SizedBox(width: compact ? 8 : 12),
-          HudActionButton(
-            icon: Icons.shuffle_rounded,
-            label: '重排',
-            compact: compact,
-            onPressed: onShuffle,
-          ),
-          SizedBox(width: compact ? 8 : 12),
-          HudActionButton(
-            icon: Icons.refresh_rounded,
-            label: '重开',
-            compact: compact,
-            onPressed: onRestart,
-          ),
-        ],
+      padding: EdgeInsets.fromLTRB(8, 4, 8, compact ? 6 : 10),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final kind in PropKind.values) ...[
+              PropButton(
+                kind: kind,
+                count: propCount(kind),
+                active: activeProp == kind,
+                compact: compact,
+                onTap: () => onProp(kind),
+              ),
+              SizedBox(width: compact ? 6 : 8),
+            ],
+            Container(
+              width: 1,
+              height: compact ? 24 : 28,
+              color: colors.outline.withValues(alpha: 0.8),
+            ),
+            SizedBox(width: compact ? 6 : 8),
+            HudActionButton(
+              icon: Icons.lightbulb_outline_rounded,
+              label: '提示',
+              compact: compact,
+              onPressed: onHint,
+            ),
+            SizedBox(width: compact ? 6 : 8),
+            HudActionButton(
+              icon: Icons.refresh_rounded,
+              label: '重开',
+              compact: compact,
+              onPressed: onRestart,
+            ),
+          ],
+        ),
       ),
     );
   }

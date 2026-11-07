@@ -11,9 +11,11 @@ import '../models/level.dart';
 import '../providers/settings_provider.dart';
 import '../services/log_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/constants.dart';
 import '../utils/immersive_landscape.dart';
 import 'level_select_page.dart';
 import 'widgets/game_hud.dart';
+import 'widgets/prop_bar.dart';
 import 'widgets/result_overlay.dart';
 
 class GamePage extends StatefulWidget {
@@ -26,6 +28,7 @@ class GamePage extends StatefulWidget {
 }
 
 class _GamePageState extends State<GamePage> {
+  late final SettingsProvider _settings;
   late final MatchController _controller;
   late final MatchGame _game;
   late final Widget _boardWidget;
@@ -36,19 +39,26 @@ class _GamePageState extends State<GamePage> {
   @override
   void initState() {
     super.initState();
-    final settings = context.read<SettingsProvider>();
-    _controller = MatchController(level: widget.level);
+    _settings = context.read<SettingsProvider>();
+    final stock = PropStock({
+      for (final kind in PropKind.values) kind: _settings.propCount(kind),
+    });
+    _controller = MatchController(
+      level: widget.level,
+      props: stock,
+      seed: widget.level.dailySeed,
+    )..onPropUsed = _persistProp;
     _game = MatchGame(
       controller: _controller,
       darkMode: _darkMode,
-      logicRate: settings.logicRate,
+      logicRate: _settings.logicRate,
     );
     // 保持同一个 Widget 实例，setState 只重建 HUD，不触碰棋盘。
     _boardWidget = GameWidget(game: _game);
     _controller.addListener(_onControllerChanged);
     LogService.info(
       '进入关卡 ${widget.level.id}（${widget.level.name}），'
-      '步数 ${widget.level.moves}，逻辑 ${settings.logicRate.hz}Hz',
+      '步数 ${widget.level.moves}，逻辑 ${_settings.logicRate.hz}Hz',
     );
   }
 
@@ -70,22 +80,75 @@ class _GamePageState extends State<GamePage> {
     if (!mounted) return;
     if (_controller.status == GameStatus.won && !_resultSaved) {
       _resultSaved = true;
-      final settings = context.read<SettingsProvider>();
-      unawaited(
-        settings.recordLevelResult(
-          levelId: widget.level.id,
-          stars: _controller.stars,
-          score: _controller.score,
-          levelCount: kLevels.length,
-        ),
-      );
-      LogService.info(
-        '关卡 ${widget.level.id} 记录成绩：${_controller.stars} 星，'
-        '${_controller.score} 分',
-      );
+      _saveResult();
     }
     _showShuffleToastIfNeeded();
     setState(() {});
+  }
+
+  /// 通关结算：福币奖励、闯关进度或每日挑战成绩。
+  void _saveResult() {
+    final stars = _controller.stars;
+    final score = _controller.score;
+    unawaited(_settings.grantCoins(AppConstants.winCoins(stars)));
+    if (widget.level.isDaily) {
+      unawaited(_claimDaily(stars: stars, score: score));
+      return;
+    }
+    unawaited(
+      _settings.recordLevelResult(
+        levelId: widget.level.id,
+        stars: stars,
+        score: score,
+        levelCount: kLevels.length,
+      ),
+    );
+    LogService.info(
+      '关卡 ${widget.level.id} 记录成绩：$stars 星，$score 分，'
+      '福币 +${AppConstants.winCoins(stars)}',
+    );
+  }
+
+  Future<void> _claimDaily({required int stars, required int score}) async {
+    final key = widget.level.dailyKey;
+    if (key == null) return;
+    final reward = await _settings.recordDailyResult(
+      dateKey: key,
+      stars: stars,
+      score: score,
+    );
+    LogService.info('每日挑战 $key 记录成绩：$stars 星，$score 分，奖励 $reward 福币');
+    if (!mounted || reward <= 0) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('每日挑战首次通关，额外奖励 $reward 福币')),
+    );
+  }
+
+  void _persistProp(PropKind kind) {
+    unawaited(_settings.setPropCount(kind, _controller.propCount(kind)));
+  }
+
+  void _onPropTap(PropKind kind) {
+    if (_controller.propCount(kind) <= 0) {
+      _openPropShop();
+      return;
+    }
+    _controller.activateProp(kind);
+  }
+
+  void _openPropShop() {
+    unawaited(
+      showPropShop(
+        context,
+        settings: _settings,
+        countOf: _controller.propCount,
+        onBought: (kind) {
+          _controller.addProp(kind);
+          _persistProp(kind);
+          LogService.info('购买道具 ${kind.label}，余额 ${_settings.coins} 福币');
+        },
+      ),
+    );
   }
 
   /// 死局自动重排时提示一次，直到棋盘恢复可操作才允许再次提示。
@@ -158,12 +221,21 @@ class _GamePageState extends State<GamePage> {
     );
   }
 
+  /// 道具待命时的操作提示，与普通提示共用棋盘上方的悬浮条。
+  String? get _propPrompt => switch (_controller.activeProp) {
+    PropKind.hammer => '点击一枚棋子，用小锤敲掉它',
+    PropKind.swap => '依次点击两枚棋子，交换它们',
+    PropKind.shuffle => null,
+    null => null,
+  };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final hasNext = nextLevelOf(widget.level.id) != null;
+    final prompt = _propPrompt ?? (_controller.hint != null ? '试试交换闪动的两枚棋子' : null);
 
     return BoardDisplayMode(
       child: Scaffold(
@@ -208,11 +280,11 @@ class _GamePageState extends State<GamePage> {
                       top: false,
                       child: GameBottomBar(
                         compact: compact,
+                        propCount: _controller.propCount,
+                        activeProp: _controller.activeProp,
+                        onProp: _onPropTap,
                         onHint: _controller.canInteract
                             ? _controller.requestHint
-                            : null,
-                        onShuffle: _controller.canInteract
-                            ? _controller.shuffleBoard
                             : null,
                         onRestart: _confirmRestart,
                       ),
@@ -223,12 +295,13 @@ class _GamePageState extends State<GamePage> {
                       child: ResultOverlay(
                         controller: _controller,
                         hasNext: hasNext,
+                        daily: widget.level.isDaily,
                         onNext: _nextLevel,
                         onReplay: _restart,
                         onLevels: _goLevels,
                       ),
                     ),
-                  if (_controller.canInteract && _controller.hint != null)
+                  if (_controller.canInteract && prompt != null)
                     Positioned(
                       top: topInset + 4,
                       left: 0,
@@ -246,7 +319,7 @@ class _GamePageState extends State<GamePage> {
                               border: Border.all(color: colors.outline),
                             ),
                             child: Text(
-                              '试试交换闪动的两枚棋子',
+                              prompt,
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: colors.onSurfaceVariant,
                               ),
