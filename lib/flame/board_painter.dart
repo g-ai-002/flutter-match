@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../game/match_controller.dart';
+import '../theme/palette.dart';
 import 'board_layout.dart';
 import 'spark.dart';
 import 'tile_sprite_cache.dart';
@@ -247,7 +248,7 @@ class BoardPainter {
     }
     if (selected) {
       _selectionPaint
-        ..color = const Color(0xFFFFD27A).withValues(alpha: 0.5)
+        ..color = appGoldLight.withValues(alpha: 0.5)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * 0.1);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -285,7 +286,7 @@ class BoardPainter {
     _paintRing(
       canvas,
       layout.cellRect(selected),
-      const Color(0xFFFFD27A),
+      appGoldLight,
       width: layout.cell * 0.055,
       inset: layout.cell * 0.02,
     );
@@ -295,11 +296,7 @@ class BoardPainter {
     final hint = controller.hint;
     if (hint == null) return;
     final pulse = 0.5 + 0.5 * math.sin(time * 7);
-    final color = Color.lerp(
-      const Color(0xFF8C2F24),
-      const Color(0xFFE9B44C),
-      pulse,
-    )!;
+    final color = Color.lerp(appRedDeep, appGoldBright, pulse)!;
     for (final cell in [hint.a, hint.b]) {
       _paintRing(
         canvas,

@@ -4,7 +4,9 @@ import '../../game/daily_challenge.dart';
 import '../../game/levels.dart';
 import '../../models/level.dart';
 import '../../providers/settings_provider.dart';
+import '../../theme/palette.dart';
 import 'entry_tile.dart';
+import 'star_progress.dart';
 import 'star_row.dart';
 
 /// 首页主行动区：继续闯关、每日挑战、关卡选择、设置与福星总进度。
@@ -43,7 +45,12 @@ class HomeStartPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ContinueCard(level: level, unlocked: unlocked, stars: bestStars, onTap: () => onStart(level)),
+        _ContinueCard(
+          level: level,
+          unlocked: unlocked,
+          stars: bestStars,
+          onTap: () => onStart(level),
+        ),
         const SizedBox(height: 10),
         _DailyCard(
           daily: daily,
@@ -57,7 +64,7 @@ class HomeStartPanel extends StatelessWidget {
             final levels = EntryTile(
               leading: const EntryBadge(
                 icon: Icons.grid_view_rounded,
-                accent: Color(0xFFA63A2B),
+                accent: appRed,
               ),
               title: '关卡选择',
               subtitle: '${kLevels.length} 关 · 已通关 $cleared',
@@ -66,7 +73,7 @@ class HomeStartPanel extends StatelessWidget {
             final settingsTile = EntryTile(
               leading: const EntryBadge(
                 icon: Icons.tune_rounded,
-                accent: Color(0xFF3F6B5B),
+                accent: appJade,
               ),
               title: '设置',
               subtitle: '音效 · 刷新率',
@@ -74,11 +81,7 @@ class HomeStartPanel extends StatelessWidget {
             );
             if (constraints.maxWidth < 460) {
               return Column(
-                children: [
-                  levels,
-                  const SizedBox(height: 10),
-                  settingsTile,
-                ],
+                children: [levels, const SizedBox(height: 10), settingsTile],
               );
             }
             return Row(
@@ -100,23 +103,16 @@ class HomeStartPanel extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(
-                Icons.star_rounded,
-                size: 18,
-                color: Color(0xFFE9B44C),
-              ),
+              const Icon(Icons.star_rounded, size: 18, color: appGoldBright),
               const SizedBox(width: 6),
-              Text('$totalStars / $maxStars', style: theme.textTheme.titleSmall),
+              Text(
+                '$totalStars / $maxStars',
+                style: theme.textTheme.titleSmall,
+              ),
               const SizedBox(width: 10),
               Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: maxStars == 0 ? 0 : totalStars / maxStars,
-                    minHeight: 6,
-                    backgroundColor: colors.outline.withValues(alpha: 0.4),
-                    color: const Color(0xFFD9985C),
-                  ),
+                child: StarProgressBar(
+                  value: maxStars == 0 ? 0 : totalStars / maxStars,
                 ),
               ),
             ],
@@ -141,8 +137,6 @@ class _DailyCard extends StatelessWidget {
   final int bestScore;
   final VoidCallback onTap;
 
-  static const Color _jade = Color(0xFF3F6B5B);
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -157,9 +151,9 @@ class _DailyCard extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           decoration: BoxDecoration(
-            color: _jade.withValues(alpha: 0.1),
+            color: appJade.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _jade.withValues(alpha: 0.45)),
+            border: Border.all(color: appJade.withValues(alpha: 0.45)),
           ),
           child: Row(
             children: [
@@ -168,13 +162,13 @@ class _DailyCard extends StatelessWidget {
                 height: 38,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: _jade.withValues(alpha: 0.16),
+                  color: appJade.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.event_available_rounded,
                   size: 20,
-                  color: _jade,
+                  color: appJade,
                 ),
               ),
               const SizedBox(width: 12),
@@ -197,9 +191,7 @@ class _DailyCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      done
-                          ? '今日最佳 $bestScore 分'
-                          : daily.goalSummary,
+                      done ? '今日最佳 $bestScore 分' : daily.goalSummary,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -220,7 +212,7 @@ class _DailyCard extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: _jade,
+                    color: appJade,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -269,7 +261,7 @@ class _ContinueCard extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFB0422F), Color(0xFF8C2F24)],
+              colors: [appRedBright, appRedDeep],
             ),
             borderRadius: BorderRadius.circular(18),
             boxShadow: const [

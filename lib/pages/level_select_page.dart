@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../game/levels.dart';
 import '../models/level.dart';
 import '../providers/settings_provider.dart';
+import '../theme/palette.dart';
 import 'game_page.dart';
+import 'widgets/star_progress.dart';
 import 'widgets/star_row.dart';
 
 class LevelSelectPage extends StatelessWidget {
@@ -46,7 +48,7 @@ class LevelSelectPage extends StatelessWidget {
                           const Icon(
                             Icons.auto_awesome_rounded,
                             size: 19,
-                            color: Color(0xFFD9985C),
+                            color: appGold,
                           ),
                           const SizedBox(width: 8),
                           Text('收集福星', style: theme.textTheme.titleSmall),
@@ -58,16 +60,8 @@ class LevelSelectPage extends StatelessWidget {
                           const SizedBox(width: 10),
                           SizedBox(
                             width: wide ? 180 : 90,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(999),
-                              child: LinearProgressIndicator(
-                                value: maxStars == 0 ? 0 : totalStars / maxStars,
-                                minHeight: 6,
-                                backgroundColor: colors.outline.withValues(
-                                  alpha: 0.4,
-                                ),
-                                color: const Color(0xFFD9985C),
-                              ),
+                            child: StarProgressBar(
+                              value: maxStars == 0 ? 0 : totalStars / maxStars,
                             ),
                           ),
                         ],
@@ -78,12 +72,13 @@ class LevelSelectPage extends StatelessWidget {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 178,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.92,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 178,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.92,
+                        ),
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final level = kLevels[index];
                       final unlocked = level.id <= settings.unlockedLevel;
@@ -144,7 +139,7 @@ class _LevelCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: finished
-                  ? const Color(0xFFD9985C).withValues(alpha: 0.7)
+                  ? appGold.withValues(alpha: 0.7)
                   : colors.outline.withValues(alpha: 0.8),
             ),
           ),
@@ -159,7 +154,7 @@ class _LevelCard extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: finished
-                          ? const Color(0xFFD9985C).withValues(alpha: 0.18)
+                          ? appGold.withValues(alpha: 0.18)
                           : colors.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -167,9 +162,7 @@ class _LevelCard extends StatelessWidget {
                       '${level.id}',
                       style: theme.textTheme.labelMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: finished
-                            ? const Color(0xFF8A6231)
-                            : colors.onSurfaceVariant,
+                        color: finished ? appGoldDeep : colors.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -194,14 +187,14 @@ class _LevelCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  color: unlocked
-                      ? colors.onSurface
-                      : colors.onSurfaceVariant,
+                  color: unlocked ? colors.onSurface : colors.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 3),
               Text(
-                bestScore > 0 ? '最高 $bestScore 分' : '${level.moves} 步 · ${level.sizeLabel}',
+                bestScore > 0
+                    ? '最高 $bestScore 分'
+                    : '${level.moves} 步 · ${level.sizeLabel}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(

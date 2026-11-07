@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../game/match_controller.dart';
+import '../../theme/palette.dart';
 import 'goal_chip.dart';
 import 'star_row.dart';
 
@@ -40,9 +41,7 @@ class ResultOverlay extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: colors.outline.withValues(alpha: 0.8),
-              ),
+              border: Border.all(color: colors.outline.withValues(alpha: 0.8)),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x40000000),
@@ -81,7 +80,7 @@ class ResultOverlay extends StatelessWidget {
                 Text(
                   '${controller.score} 分',
                   style: theme.textTheme.titleLarge?.copyWith(
-                    color: const Color(0xFFA63A2B),
+                    color: appRed,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -124,10 +123,7 @@ class ResultOverlay extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                TextButton(
-                  onPressed: onLevels,
-                  child: const Text('返回关卡列表'),
-                ),
+                TextButton(onPressed: onLevels, child: const Text('返回关卡列表')),
               ],
             ),
           ),

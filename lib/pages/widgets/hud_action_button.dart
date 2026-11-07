@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/palette.dart';
+
 /// 悬浮操作按钮：底部工具条的提示与重开。
 class HudActionButton extends StatelessWidget {
   const HudActionButton({
@@ -25,10 +27,10 @@ class HudActionButton extends StatelessWidget {
     final colors = theme.colorScheme;
     final enabled = onPressed != null;
     final background = highlight
-        ? const Color(0xFFD9985C).withValues(alpha: 0.92)
+        ? appGold.withValues(alpha: 0.92)
         : colors.surface.withValues(alpha: 0.9);
     final foreground = highlight
-        ? const Color(0xFF2A1206)
+        ? appInkOnGold
         : enabled
         ? colors.onSurface
         : colors.onSurfaceVariant;
@@ -48,7 +50,7 @@ class HudActionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: highlight
-                  ? const Color(0xFFB4781E)
+                  ? appGoldDark
                   : colors.outline.withValues(alpha: 0.8),
             ),
             boxShadow: const [

@@ -19,21 +19,18 @@ class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   void _openGame(BuildContext context, Level level) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => GamePage(level: level)),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => GamePage(level: level)));
   }
 
   void _openLevels(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const LevelSelectPage()));
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const LevelSelectPage()));
   }
 
   void _openSettings(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
 
   @override
@@ -44,7 +41,7 @@ class HomePage extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final totalStars = settings.totalStars(kLevels.length);
     final unlocked = settings.unlockedLevel.clamp(1, kLevels.length);
-    final cleared = _clearedCount(settings);
+    final cleared = settings.clearedCount(kLevels.length);
     final daily = DailyChallenge.of(DateTime.now());
 
     return Scaffold(
@@ -139,12 +136,4 @@ class HomePage extends StatelessWidget {
     onOpenLevels: () => _openLevels(context),
     onOpenSettings: () => _openSettings(context),
   );
-
-  int _clearedCount(SettingsProvider settings) {
-    var count = 0;
-    for (final level in kLevels) {
-      if (settings.starsFor(level.id) > 0) count++;
-    }
-    return count;
-  }
 }

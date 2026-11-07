@@ -3,13 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/tile.dart';
 import 'tile_art.dart';
 
+export 'palette.dart';
 export 'tile_art.dart';
 
-/// 中国红 + 暖金底色的视觉基调。
-const Color appRed = Color(0xFFA63A2B);
-const Color appGold = Color(0xFFD9985C);
-const Color appJade = Color(0xFF3F6B5B);
-const Color appInk = Color(0xFF2B2620);
+/// 中国红 + 暖金底色的视觉基调，具体色值见 `palette.dart`。
 
 /// 首页、关卡页与对局页共用的暖色渐变底色。
 const List<Color> kSceneColorsLight = [Color(0xFFFDF7EA), Color(0xFFF0DFC0)];

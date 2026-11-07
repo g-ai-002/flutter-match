@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/palette.dart';
+
 /// 三星评级展示：通关星级 + 未获得的灰星。
 class StarRow extends StatelessWidget {
   const StarRow({
@@ -26,7 +28,7 @@ class StarRow extends StatelessWidget {
               index < stars ? Icons.star_rounded : Icons.star_outline_rounded,
               size: size,
               color: index < stars
-                  ? const Color(0xFFE9B44C)
+                  ? appGoldBright
                   : colors.onSurfaceVariant.withValues(alpha: 0.45),
             ),
           ),

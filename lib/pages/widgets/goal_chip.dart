@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../game/match_controller.dart';
 import '../../models/level.dart';
+import '../../theme/palette.dart';
 import '../../theme/tile_art.dart';
 
 /// 关卡目标进度胶囊：HUD 与结算面板共用。
@@ -17,7 +18,7 @@ class GoalChip extends StatelessWidget {
     final colors = theme.colorScheme;
     final goal = progress.goal;
     final done = progress.done;
-    final accent = done ? const Color(0xFF3F8A5F) : colors.onSurfaceVariant;
+    final accent = done ? appSuccess : colors.onSurfaceVariant;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 7 : 9,
@@ -27,9 +28,7 @@ class GoalChip extends StatelessWidget {
         color: colors.surface.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: done
-              ? const Color(0xFF3F8A5F).withValues(alpha: 0.6)
-              : colors.outline,
+          color: done ? appSuccess.withValues(alpha: 0.6) : colors.outline,
         ),
       ),
       child: Row(
@@ -49,7 +48,7 @@ class GoalChip extends StatelessWidget {
           ),
           if (done) ...[
             const SizedBox(width: 3),
-            const Icon(Icons.check_rounded, size: 13, color: Color(0xFF3F8A5F)),
+            const Icon(Icons.check_rounded, size: 13, color: appSuccess),
           ],
         ],
       ),
@@ -62,16 +61,12 @@ class GoalChip extends StatelessWidget {
       case GoalKind.collect:
         return TileBadge(type: progress.goal.type!, size: size);
       case GoalKind.score:
-        return Icon(
-          Icons.auto_awesome_rounded,
-          size: size,
-          color: const Color(0xFFD9985C),
-        );
+        return Icon(Icons.auto_awesome_rounded, size: size, color: appGold);
       case GoalKind.ice:
         return Icon(
           Icons.ac_unit_rounded,
           size: size,
-          color: done ? const Color(0xFF3F8A5F) : const Color(0xFF4F86B5),
+          color: done ? appSuccess : appIce,
         );
     }
   }
