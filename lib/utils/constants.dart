@@ -5,7 +5,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = '福运消消乐';
-  static const String version = '0.2.1';
+  static const String version = '0.2.2';
 
   static const String prefKeyDarkMode = 'dark_mode';
   static const String prefKeySound = 'sound_enabled';
