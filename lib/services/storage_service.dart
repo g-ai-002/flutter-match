@@ -4,8 +4,9 @@ import '../game/daily_challenge.dart';
 import '../game/logic_rate.dart';
 import '../game/props.dart';
 import '../utils/constants.dart';
+import 'log_service.dart';
 
-/// 轻量本地存储：偏好设置与关卡进度，写入失败时静默忽略。
+/// 轻量本地存储：偏好设置与关卡进度，写入失败时记录日志并忽略。
 class StorageService {
   static StorageService? _instance;
   SharedPreferences? _prefs;
@@ -34,7 +35,9 @@ class StorageService {
   ) async {
     try {
       await action(_p);
-    } catch (_) {}
+    } catch (error) {
+      LogService.warning('本地存储写入失败: $error');
+    }
   }
 
   bool get darkMode => _p.getBool(AppConstants.prefKeyDarkMode) ?? false;
@@ -121,6 +124,15 @@ class StorageService {
       total += starsFor(id);
     }
     return total;
+  }
+
+  /// 至少通关一次的关卡数量。
+  int clearedCount(int levelCount) {
+    var count = 0;
+    for (var id = 1; id <= levelCount; id++) {
+      if (starsFor(id) > 0) count++;
+    }
+    return count;
   }
 
   /// 记录通关结果：星级与最高分只增不减，并解锁下一关。

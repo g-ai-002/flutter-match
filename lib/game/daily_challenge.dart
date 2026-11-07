@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../models/level.dart';
 import '../models/tile.dart';
+import '../utils/formatters.dart';
 
 /// 每日挑战：同一天生成同一关卡与同一副初始棋盘。
 ///
@@ -28,7 +29,7 @@ class DailyChallenge {
 
   static DailyChallenge of(DateTime date) {
     final day = DateTime(date.year, date.month, date.day);
-    final dateKey = _dateKey(day);
+    final dateKey = formatDateKey(day);
     final dayIndex = day.difference(DateTime(2024)).inDays;
     final seed = dayIndex * 7919 + 17;
     final random = Random(seed);
@@ -55,7 +56,8 @@ class DailyChallenge {
   }
 
   /// 今日目标的一句话摘要，用于首页卡片。
-  String get goalSummary => level.goals.map((goal) => goal.shortLabel).join(' · ');
+  String get goalSummary =>
+      level.goals.map((goal) => goal.shortLabel).join(' · ');
 
   static List<LevelGoal> _goals(Random random, {required bool hasIce}) {
     final type = TileType.values[random.nextInt(5)];
@@ -88,11 +90,5 @@ class DailyChallenge {
       cells[random.nextInt(cols * rows)] = 1;
     }
     return cells;
-  }
-
-  static String _dateKey(DateTime day) {
-    final month = day.month < 10 ? '0${day.month}' : '${day.month}';
-    final date = day.day < 10 ? '0${day.day}' : '${day.day}';
-    return '${day.year}$month$date';
   }
 }
