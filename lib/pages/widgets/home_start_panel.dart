@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../game/achievements.dart';
 import '../../game/daily_challenge.dart';
 import '../../game/levels.dart';
 import '../../models/level.dart';
@@ -9,7 +10,7 @@ import 'entry_tile.dart';
 import 'star_progress.dart';
 import 'star_row.dart';
 
-/// 首页主行动区：继续闯关、每日挑战、关卡选择、设置与福星总进度。
+/// 首页主行动区：继续闯关、每日挑战、关卡选择、设置、成就与福星总进度。
 class HomeStartPanel extends StatelessWidget {
   const HomeStartPanel({
     super.key,
@@ -22,6 +23,7 @@ class HomeStartPanel extends StatelessWidget {
     required this.onStartDaily,
     required this.onOpenLevels,
     required this.onOpenSettings,
+    required this.onOpenAchievements,
   });
 
   final SettingsProvider settings;
@@ -33,6 +35,7 @@ class HomeStartPanel extends StatelessWidget {
   final VoidCallback onStartDaily;
   final VoidCallback onOpenLevels;
   final VoidCallback onOpenSettings;
+  final VoidCallback onOpenAchievements;
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +95,18 @@ class HomeStartPanel extends StatelessWidget {
               ],
             );
           },
+        ),
+        const SizedBox(height: 10),
+        EntryTile(
+          leading: const EntryBadge(
+            icon: Icons.workspace_premium_rounded,
+            accent: appGoldDark,
+          ),
+          title: '成就',
+          subtitle:
+              '已解锁 ${unlockedAchievementCount(settings.playerStats(kLevels.length))}'
+              ' / ${kAchievements.length}',
+          onTap: onOpenAchievements,
         ),
         const SizedBox(height: 12),
         Container(

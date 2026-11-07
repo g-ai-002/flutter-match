@@ -6,6 +6,7 @@ import 'package:fortune_match/game/props.dart';
 import 'package:fortune_match/game/scoring.dart';
 import 'package:fortune_match/providers/settings_provider.dart';
 import 'package:fortune_match/services/storage_service.dart';
+import 'package:fortune_match/theme/skins.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -203,5 +204,42 @@ void main() {
     );
     expect(failed, 0);
     expect(storage.dailyStars('20261109'), 0);
+  });
+
+  test('成就统计只增不减，重置进度一并清理', () async {
+    final storage = await StorageService.instance;
+    expect(storage.maxCombo, 0);
+    expect(storage.iceBroken, 0);
+    expect(storage.propsUsed, 0);
+
+    await storage.recordStats(maxCombo: 4, iceBroken: 12, propsUsed: 2);
+    expect(storage.maxCombo, 4);
+    expect(storage.iceBroken, 12);
+    expect(storage.propsUsed, 2);
+
+    await storage.recordStats(maxCombo: 2, iceBroken: 3, propsUsed: 1);
+    expect(storage.maxCombo, 4, reason: '最高连锁取历史最大值');
+    expect(storage.iceBroken, 15);
+    expect(storage.propsUsed, 3);
+
+    await storage.recordDailyResult(dateKey: '20261108', stars: 3, score: 5000);
+    expect(storage.dailyClears, 1);
+    await storage.recordDailyResult(dateKey: '20261108', stars: 3, score: 5200);
+    expect(storage.dailyClears, 1, reason: '同一天重复通关不重复计数');
+
+    await storage.resetProgress();
+    expect(storage.maxCombo, 0);
+    expect(storage.iceBroken, 0);
+    expect(storage.propsUsed, 0);
+    expect(storage.dailyClears, 0);
+  });
+
+  test('主题皮肤选择持久化，未知值回退默认', () async {
+    final storage = await StorageService.instance;
+    expect(storage.skin, AppSkin.cinnabar);
+    await storage.setSkin(AppSkin.celadon);
+    expect(storage.skin, AppSkin.celadon);
+    await storage.resetProgress();
+    expect(storage.skin, AppSkin.celadon, reason: '重置进度不改外观偏好');
   });
 }

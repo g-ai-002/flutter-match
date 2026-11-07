@@ -34,7 +34,7 @@ class _GamePageState extends State<GamePage> {
   late final MatchGame _game;
   late final Widget _boardWidget;
   final ValueNotifier<bool> _darkMode = ValueNotifier(false);
-  bool _resultSaved = false;
+  bool _endRecorded = false;
   bool _shuffleToastShown = false;
 
   @override
@@ -79,41 +79,63 @@ class _GamePageState extends State<GamePage> {
 
   void _onControllerChanged() {
     if (!mounted) return;
-    if (_controller.status == GameStatus.won && !_resultSaved) {
-      _resultSaved = true;
-      _saveResult();
+    if (_controller.isOver && !_endRecorded) {
+      _endRecorded = true;
+      unawaited(_recordEnd());
     }
     _showShuffleToastIfNeeded();
     setState(() {});
   }
 
-  /// 通关结算：福币奖励、闯关进度或每日挑战成绩。
-  void _saveResult() => unawaited(_recordWin());
-
-  Future<void> _recordWin() async {
-    final stars = _controller.stars;
-    final score = _controller.score;
-    final dailyReward = await _settings.recordWin(
-      level: widget.level,
-      stars: stars,
-      score: score,
-      levelCount: kLevels.length,
-    );
-    if (widget.level.isDaily) {
-      LogService.info(
-        '每日挑战 ${widget.level.dailyKey} 记录成绩：'
-        '$stars 星，$score 分，奖励 $dailyReward 福币',
+  /// 对局结束结算：通关奖励、成就统计与本次新解锁的成就。
+  Future<void> _recordEnd() async {
+    final won = _controller.status == GameStatus.won;
+    final before = _unlockedAchievementIds();
+    var dailyReward = 0;
+    if (won) {
+      dailyReward = await _settings.recordWin(
+        level: widget.level,
+        stars: _controller.stars,
+        score: _controller.score,
+        levelCount: kLevels.length,
       );
-    } else {
-      LogService.info(
-        '关卡 ${widget.level.id} 记录成绩：$stars 星，$score 分，'
-        '福币 +${ScoreRules.rewardCoins(stars)}',
-      );
+      if (widget.level.isDaily) {
+        LogService.info(
+          '每日挑战 ${widget.level.dailyKey} 记录成绩：'
+          '${_controller.stars} 星，${_controller.score} 分，奖励 $dailyReward 福币',
+        );
+      } else {
+        LogService.info(
+          '关卡 ${widget.level.id} 记录成绩：${_controller.stars} 星，'
+          '${_controller.score} 分，福币 +${ScoreRules.rewardCoins(_controller.stars)}',
+        );
+      }
     }
-    if (!mounted || dailyReward <= 0) return;
+    await _settings.recordStats(
+      maxCombo: _controller.bestCombo,
+      iceBroken: _controller.iceBroken,
+      propsUsed: _controller.propsUsed,
+    );
+    final unlocked = [
+      for (final status in _settings.achievements(kLevels.length))
+        if (status.unlocked && !before.contains(status.achievement.id))
+          status.achievement.title,
+    ];
+    if (unlocked.isNotEmpty) LogService.info('解锁成就：${unlocked.join('、')}');
+    if (!mounted) return;
+    final messages = [
+      if (dailyReward > 0) '每日挑战首次通关，额外奖励 $dailyReward 福币',
+      if (unlocked.isNotEmpty) '解锁成就：${unlocked.join('、')}',
+    ];
+    if (messages.isEmpty) return;
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('每日挑战首次通关，额外奖励 $dailyReward 福币')));
+        .showSnackBar(SnackBar(content: Text(messages.join('　'))));
   }
+
+  Set<String> _unlockedAchievementIds() => {
+    for (final status in _settings.achievements(kLevels.length))
+      if (status.unlocked) status.achievement.id,
+  };
 
   void _onPropTap(PropKind kind) {
     if (_controller.propCount(kind) <= 0) {
@@ -160,7 +182,7 @@ class _GamePageState extends State<GamePage> {
 
   void _restart() {
     _controller.restart();
-    _resultSaved = false;
+    _endRecorded = false;
     _shuffleToastShown = false;
     LogService.info('重开关卡 ${widget.level.id}');
   }

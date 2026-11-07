@@ -40,6 +40,8 @@ void main() {
     expect(find.text('第 1 关 · 初尝福味'), findsOneWidget);
     expect(find.text('关卡选择'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
+    expect(find.text('成就'), findsOneWidget);
+    expect(find.text('已解锁 0 / 13'), findsOneWidget);
     expect(find.textContaining('v${AppConstants.version}'), findsOneWidget);
   });
 

@@ -5,7 +5,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = '福运消消乐';
-  static const String version = '0.2.2';
+  static const String version = '0.3.0';
 
   static const String prefKeyDarkMode = 'dark_mode';
   static const String prefKeySound = 'sound_enabled';
@@ -14,6 +14,13 @@ class AppConstants {
   static const String prefKeyLogicRate = 'logic_rate';
   static const String prefKeyUnlocked = 'level_unlocked';
   static const String prefKeyCoins = 'fortune_coins';
+  static const String prefKeySkin = 'theme_skin';
+
+  /// 成就统计：单局最高连锁、累计破冰、累计使用道具、每日挑战完成天数。
+  static const String statMaxCombo = 'stat_max_combo';
+  static const String statIceBroken = 'stat_ice_broken';
+  static const String statPropsUsed = 'stat_props_used';
+  static const String statDailyClears = 'stat_daily_clears';
 
   /// 单关星级的存储键：`stars_<levelId>`。
   static String starsKey(int levelId) => 'stars_$levelId';

@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../models/tile.dart';
+import 'skins.dart';
 import 'tile_art.dart';
 
 export 'palette.dart';
+export 'skins.dart';
 export 'tile_art.dart';
 
 /// 中国红 + 暖金底色的视觉基调，具体色值见 `palette.dart`。
 
-/// 首页、关卡页与对局页共用的暖色渐变底色。
-const List<Color> kSceneColorsLight = [Color(0xFFFDF7EA), Color(0xFFF0DFC0)];
-const List<Color> kSceneColorsDark = [Color(0xFF241C15), Color(0xFF120F0A)];
-
+/// 首页、关卡页与对局页共用的场景渐变底色，随皮肤切换。
 LinearGradient sceneGradient(bool dark) => LinearGradient(
   begin: Alignment.topCenter,
   end: Alignment.bottomCenter,
-  colors: dark ? kSceneColorsDark : kSceneColorsLight,
+  colors: activeSceneColors(dark),
 );
 
 ThemeData buildLightTheme({String? fontFamily}) {

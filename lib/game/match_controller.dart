@@ -44,6 +44,8 @@ class MatchController extends ChangeNotifier {
   int _score = 0;
   int _iceBroken = 0;
   int _combo = 0;
+  int _bestCombo = 0;
+  int _propsUsed = 0;
   int _selected = -1;
   int _stars = 0;
   GameStatus _status = GameStatus.ready;
@@ -62,6 +64,12 @@ class MatchController extends ChangeNotifier {
   int get movesLeft => _movesLeft;
   int get score => _score;
   int get combo => _combo;
+
+  /// 本局打出的最高连锁，用于成就统计。
+  int get bestCombo => _bestCombo;
+
+  /// 本局已消耗的道具次数，用于成就统计。
+  int get propsUsed => _propsUsed;
   int get iceBroken => _iceBroken;
   GameStatus get status => _status;
   int get selected => _selected;
@@ -172,6 +180,7 @@ class MatchController extends ChangeNotifier {
     if (!canInteract || !_props.has(kind)) return false;
     if (kind == PropKind.shuffle) {
       _props.take(kind);
+      _propsUsed++;
       _shuffleBoard();
       LogService.info('关卡 ${level.id} 使用洗牌道具');
       SoundService.play(FeedbackKind.prop);
@@ -198,6 +207,7 @@ class MatchController extends ChangeNotifier {
     final steps = _engine.smash(index);
     if (steps.isEmpty) return;
     _props.take(PropKind.hammer);
+    _propsUsed++;
     _resetInteraction();
     LogService.info('关卡 ${level.id} 使用小锤：格 $index');
     _beginSteps(steps, FeedbackKind.prop);
@@ -226,6 +236,7 @@ class MatchController extends ChangeNotifier {
       return;
     }
     _props.take(PropKind.swap);
+    _propsUsed++;
     _resetInteraction();
     LogService.info('关卡 ${level.id} 使用换位：$from ↔ $index');
     _beginSteps(outcome.steps, FeedbackKind.prop);
@@ -263,6 +274,7 @@ class MatchController extends ChangeNotifier {
   void onStepShown(BoardStep step) {
     if (step is! ClearStep) return;
     _combo = step.combo;
+    if (step.combo > _bestCombo) _bestCombo = step.combo;
     final broken = step.iceChanges.where((change) => change.broken).length;
     _score += ScoreRules.forClear(
       tiles: step.tiles.length,
@@ -352,6 +364,8 @@ class MatchController extends ChangeNotifier {
     _score = 0;
     _iceBroken = 0;
     _combo = 0;
+    _bestCombo = 0;
+    _propsUsed = 0;
     _stars = 0;
     _pending = const [];
     _status = GameStatus.ready;

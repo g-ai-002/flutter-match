@@ -63,4 +63,27 @@ void main() {
     await tester.pump();
     expect(storage.darkMode, isTrue);
   });
+
+  testWidgets('主题皮肤按福星解锁并写入本地存储', (tester) async {
+    tester.view.physicalSize = const Size(820, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    final settings = SettingsProvider(storage);
+    await tester.pumpWidget(_wrap(settings));
+
+    expect(find.text('主题皮肤'), findsOneWidget);
+    expect(find.text('朱砂福韵'), findsOneWidget);
+    expect(find.text('青瓷月白'), findsOneWidget);
+    expect(find.text('墨玉灯影'), findsOneWidget);
+
+    await tester.tap(find.text('青瓷月白'));
+    await tester.pump();
+    expect(storage.skin.name, 'cinnabar', reason: '福星不足时不能解锁');
+    expect(find.textContaining('累计收集 30 颗福星'), findsOneWidget);
+
+    await tester.pumpAndSettle();
+  });
 }

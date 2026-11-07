@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../game/achievements.dart';
 import '../game/logic_rate.dart';
 import '../game/props.dart';
 import '../game/scoring.dart';
@@ -9,6 +10,7 @@ import '../models/level.dart';
 import '../services/music_service.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
+import '../theme/skins.dart';
 
 /// 用户偏好：主题、逻辑速率与音效反馈。
 class SettingsProvider extends ChangeNotifier {
@@ -44,6 +46,37 @@ class SettingsProvider extends ChangeNotifier {
   LogicRate get logicRate => _storage.logicRate;
   Future<void> setLogicRate(LogicRate value) =>
       _update(() => _storage.setLogicRate(value));
+
+  AppSkin get skin => _storage.skin;
+  Future<void> setSkin(AppSkin value) => _update(() => _storage.setSkin(value));
+
+  /// 当前进度对应的成就统计。
+  PlayerStats playerStats(int levelCount) => PlayerStats(
+    cleared: _storage.clearedCount(levelCount),
+    perfect: _storage.perfectCount(levelCount),
+    stars: _storage.totalStars(levelCount),
+    dailyClears: _storage.dailyClears,
+    maxCombo: _storage.maxCombo,
+    iceBroken: _storage.iceBroken,
+    propsUsed: _storage.propsUsed,
+  );
+
+  List<AchievementStatus> achievements(int levelCount) =>
+      evaluateAchievements(playerStats(levelCount));
+
+  /// 对局结束时累计成就统计。
+  Future<void> recordStats({
+    int maxCombo = 0,
+    int iceBroken = 0,
+    int propsUsed = 0,
+  }) async {
+    await _storage.recordStats(
+      maxCombo: maxCombo,
+      iceBroken: iceBroken,
+      propsUsed: propsUsed,
+    );
+    notifyListeners();
+  }
 
   int starsFor(int levelId) => _storage.starsFor(levelId);
   int bestScoreFor(int levelId) => _storage.bestScoreFor(levelId);

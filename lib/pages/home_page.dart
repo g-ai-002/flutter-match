@@ -7,6 +7,7 @@ import '../models/level.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/constants.dart';
+import 'achievements_page.dart';
 import 'game_page.dart';
 import 'level_select_page.dart';
 import 'settings_page.dart';
@@ -31,6 +32,12 @@ class HomePage extends StatelessWidget {
   void _openSettings(BuildContext context) {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+  }
+
+  void _openAchievements(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const AchievementsPage()));
   }
 
   @override
@@ -135,5 +142,6 @@ class HomePage extends StatelessWidget {
     onStartDaily: () => _openGame(context, daily.level),
     onOpenLevels: () => _openLevels(context),
     onOpenSettings: () => _openSettings(context),
+    onOpenAchievements: () => _openAchievements(context),
   );
 }

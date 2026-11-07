@@ -70,6 +70,7 @@ class _FortuneMatchAppState extends State<FortuneMatchApp>
       create: (_) => SettingsProvider(widget.storage),
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
+          activateSkin(settings.skin);
           return MaterialApp(
             title: AppConstants.appName,
             debugShowCheckedModeBanner: false,

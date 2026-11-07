@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../game/daily_challenge.dart';
 import '../game/logic_rate.dart';
 import '../game/props.dart';
+import '../theme/skins.dart';
 import '../utils/constants.dart';
 import 'log_service.dart';
 
@@ -62,6 +63,34 @@ class StorageService {
   Future<void> setLogicRate(LogicRate value) =>
       _write((p) => p.setString(AppConstants.prefKeyLogicRate, value.name));
 
+  AppSkin get skin => AppSkin.byName(_p.getString(AppConstants.prefKeySkin));
+  Future<void> setSkin(AppSkin value) =>
+      _write((p) => p.setString(AppConstants.prefKeySkin, value.name));
+
+  /// 成就统计，只增不减。
+  int get maxCombo => _p.getInt(AppConstants.statMaxCombo) ?? 0;
+  int get iceBroken => _p.getInt(AppConstants.statIceBroken) ?? 0;
+  int get propsUsed => _p.getInt(AppConstants.statPropsUsed) ?? 0;
+  int get dailyClears => _p.getInt(AppConstants.statDailyClears) ?? 0;
+
+  /// 累计一局的成就统计：连锁取最大值，其余累加。
+  Future<void> recordStats({
+    int maxCombo = 0,
+    int iceBroken = 0,
+    int propsUsed = 0,
+  }) => _write((p) async {
+    if (maxCombo > this.maxCombo) {
+      await p.setInt(AppConstants.statMaxCombo, maxCombo);
+    }
+    if (iceBroken > 0) {
+      await p.setInt(AppConstants.statIceBroken, this.iceBroken + iceBroken);
+    }
+    if (propsUsed > 0) {
+      await p.setInt(AppConstants.statPropsUsed, this.propsUsed + propsUsed);
+    }
+    return true;
+  });
+
   int starsFor(int levelId) => _p.getInt(AppConstants.starsKey(levelId)) ?? 0;
 
   int bestScoreFor(int levelId) =>
@@ -110,6 +139,7 @@ class StorageService {
     await _write((p) async {
       await p.setBool(AppConstants.dailyRewardKey(dateKey), true);
       await p.setInt(AppConstants.prefKeyCoins, coins + reward);
+      await p.setInt(AppConstants.statDailyClears, dailyClears + 1);
       return true;
     });
     return reward;
@@ -131,6 +161,15 @@ class StorageService {
     var count = 0;
     for (var id = 1; id <= levelCount; id++) {
       if (starsFor(id) > 0) count++;
+    }
+    return count;
+  }
+
+  /// 拿到三星的关卡数量。
+  int perfectCount(int levelCount) {
+    var count = 0;
+    for (var id = 1; id <= levelCount; id++) {
+      if (starsFor(id) >= 3) count++;
     }
     return count;
   }
@@ -159,7 +198,9 @@ class StorageService {
   Future<void> resetProgress() => _write((p) async {
     await p.remove(AppConstants.prefKeyUnlocked);
     for (final key in p.getKeys().toList()) {
-      if (key.startsWith('stars_') || key.startsWith('best_')) {
+      if (key.startsWith('stars_') ||
+          key.startsWith('best_') ||
+          key.startsWith('stat_')) {
         await p.remove(key);
       }
     }

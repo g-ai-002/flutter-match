@@ -6,6 +6,7 @@ import '../game/logic_rate.dart';
 import '../providers/settings_provider.dart';
 import '../services/file_system_service.dart';
 import '../services/log_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/constants.dart';
 import '../utils/platform_info.dart';
 import 'widgets/section_card.dart';
@@ -104,6 +105,35 @@ class SettingsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 SectionCard(
+                  title: '主题皮肤',
+                  icon: Icons.auto_awesome_outlined,
+                  children: [
+                    Text(
+                      '累计福星解锁新配色，棋子与场景会一起替换。',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final skin in AppSkin.values)
+                          _SkinCard(
+                            skin: skin,
+                            selected: settings.skin == skin,
+                            locked:
+                                settings.totalStars(kLevels.length) <
+                                skin.requiredStars,
+                            onTap: () => _selectSkin(context, settings, skin),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SectionCard(
                   title: '关卡进度',
                   icon: Icons.emoji_events_outlined,
                   children: [
@@ -137,9 +167,7 @@ class SettingsPage extends StatelessWidget {
                       future: FileSystemService.instance.getLogRootPath(),
                       builder: (context, snapshot) {
                         final path = snapshot.data ?? '';
-                        final text = path.isEmpty
-                            ? '当前平台日志仅保留在内存中'
-                            : path;
+                        final text = path.isEmpty ? '当前平台日志仅保留在内存中' : path;
                         return SelectableText(
                           text,
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -198,9 +226,8 @@ class SettingsPage extends StatelessWidget {
     final opened = await FileSystemService.instance.openDirectory(path);
     if (!context.mounted) return;
     if (!opened) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法打开日志目录')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('无法打开日志目录')));
     }
   }
 
@@ -230,6 +257,21 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  void _selectSkin(
+    BuildContext context,
+    SettingsProvider settings,
+    AppSkin skin,
+  ) {
+    if (settings.totalStars(kLevels.length) < skin.requiredStars) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('累计收集 ${skin.requiredStars} 颗福星后解锁')),
+      );
+      return;
+    }
+    settings.setSkin(skin);
+    LogService.info('切换主题皮肤：${skin.label}');
+  }
+
   void _confirmReset(BuildContext context, SettingsProvider settings) {
     showDialog<void>(
       context: context,
@@ -249,6 +291,102 @@ class SettingsPage extends StatelessWidget {
             child: const Text('重置'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SkinCard extends StatelessWidget {
+  const _SkinCard({
+    required this.skin,
+    required this.selected,
+    required this.locked,
+    required this.onTap,
+  });
+
+  final AppSkin skin;
+  final bool selected;
+  final bool locked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final spec = kSkinSpecs[skin]!;
+    final swatches = spec.tiles.values.take(4).toList();
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          width: 156,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? appGoldBright
+                  : colors.outline.withValues(alpha: 0.8),
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  for (final palette in swatches)
+                    Container(
+                      width: 15,
+                      height: 15,
+                      margin: const EdgeInsets.only(right: 3),
+                      decoration: BoxDecoration(
+                        color: palette.base,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: palette.deep.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
+                  if (selected)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 15,
+                      color: appGoldDark,
+                    )
+                  else if (locked)
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 14,
+                      color: colors.onSurfaceVariant,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 7),
+              Text(
+                skin.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(fontSize: 12.5),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                locked ? '${skin.requiredStars} 福星解锁' : skin.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 10.5,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -279,7 +417,10 @@ class _SwitchRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: theme.textTheme.titleSmall?.copyWith(fontSize: 13)),
+              Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(fontSize: 13),
+              ),
               const SizedBox(height: 2),
               Text(
                 subtitle,

@@ -3,60 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/tile.dart';
+import 'skins.dart';
 
-/// 单种棋子的配色：高光、主色、暗部与纹样颜色。
-class TilePalette {
-  const TilePalette({
-    required this.light,
-    required this.base,
-    required this.deep,
-    required this.glyph,
-  });
+export 'skins.dart' show AppSkin, SkinSpec, TilePalette;
 
-  final Color light;
-  final Color base;
-  final Color deep;
-  final Color glyph;
-}
-
-const Map<TileType, TilePalette> kTilePalettes = {
-  TileType.coin: TilePalette(
-    light: Color(0xFFF8DF9C),
-    base: Color(0xFFE7B24B),
-    deep: Color(0xFF9A6413),
-    glyph: Color(0xFF6B3A06),
-  ),
-  TileType.ingot: TilePalette(
-    light: Color(0xFFF6B08C),
-    base: Color(0xFFDC6B45),
-    deep: Color(0xFF8C3418),
-    glyph: Color(0xFF5C1E08),
-  ),
-  TileType.lantern: TilePalette(
-    light: Color(0xFFF3A29E),
-    base: Color(0xFFD6534B),
-    deep: Color(0xFF8A221C),
-    glyph: Color(0xFF5A0F0B),
-  ),
-  TileType.jade: TilePalette(
-    light: Color(0xFFA8D6B8),
-    base: Color(0xFF5FA377),
-    deep: Color(0xFF2C6347),
-    glyph: Color(0xFF14402C),
-  ),
-  TileType.porcelain: TilePalette(
-    light: Color(0xFFA9CDEA),
-    base: Color(0xFF4F86B5),
-    deep: Color(0xFF24537C),
-    glyph: Color(0xFF103651),
-  ),
-  TileType.lotus: TilePalette(
-    light: Color(0xFFCBADE3),
-    base: Color(0xFF9B6BB5),
-    deep: Color(0xFF5F3A80),
-    glyph: Color(0xFF3A1F58),
-  ),
-};
+/// 当前皮肤下的棋子配色，切换皮肤后自动指向新配色。
+Map<TileType, TilePalette> get kTilePalettes => activeTilePalettes;
 
 /// 棋子文字缓存：同一尺寸与颜色的纹样只排版一次。
 class TileGlyphCache {
@@ -68,7 +20,8 @@ class TileGlyphCache {
     Color color, {
     FontWeight weight = FontWeight.w700,
   }) {
-    final key = '$text|${fontSize.toStringAsFixed(2)}|'
+    final key =
+        '$text|${fontSize.toStringAsFixed(2)}|'
         '${color.toARGB32()}|${weight.value}';
     return _painters.putIfAbsent(key, () {
       final painter = TextPainter(
@@ -81,7 +34,11 @@ class TileGlyphCache {
             color: color,
             fontWeight: weight,
             shadows: const [
-              Shadow(color: Color(0x33000000), offset: Offset(0, 1), blurRadius: 1),
+              Shadow(
+                color: Color(0x33000000),
+                offset: Offset(0, 1),
+                blurRadius: 1,
+              ),
             ],
           ),
         ),
@@ -220,8 +177,22 @@ void _paintArrows(Canvas canvas, Rect rect, {required bool horizontal}) {
       _chevron(canvas, Offset(rect.left + offset, cy), size, false, paint);
       _chevron(canvas, Offset(rect.right - offset, cy), size, true, paint);
     } else {
-      _chevron(canvas, Offset(cx, rect.top + offset), size, true, paint, vertical: true);
-      _chevron(canvas, Offset(cx, rect.bottom - offset), size, false, paint, vertical: true);
+      _chevron(
+        canvas,
+        Offset(cx, rect.top + offset),
+        size,
+        true,
+        paint,
+        vertical: true,
+      );
+      _chevron(
+        canvas,
+        Offset(cx, rect.bottom - offset),
+        size,
+        false,
+        paint,
+        vertical: true,
+      );
     }
   }
 }
@@ -322,12 +293,18 @@ void paintIce(Canvas canvas, Rect rect, int layers) {
     final path = Path()
       ..moveTo(inset.left + inset.width * 0.2, inset.top + inset.height * 0.28)
       ..lineTo(inset.left + inset.width * 0.44, inset.top + inset.height * 0.52)
-      ..lineTo(inset.left + inset.width * 0.36, inset.top + inset.height * 0.78);
+      ..lineTo(
+        inset.left + inset.width * 0.36,
+        inset.top + inset.height * 0.78,
+      );
     canvas.drawPath(path, crack);
     canvas.drawPath(
       Path()
         ..moveTo(inset.left + inset.width * 0.7, inset.top + inset.height * 0.2)
-        ..lineTo(inset.left + inset.width * 0.62, inset.top + inset.height * 0.48),
+        ..lineTo(
+          inset.left + inset.width * 0.62,
+          inset.top + inset.height * 0.48,
+        ),
       crack,
     );
   } else {
@@ -339,7 +316,10 @@ void paintIce(Canvas canvas, Rect rect, int layers) {
       ..moveTo(inset.left + inset.width * 0.72, inset.top + inset.height * 0.22)
       ..lineTo(inset.left + inset.width * 0.62, inset.top + inset.height * 0.42)
       ..moveTo(inset.left + inset.width * 0.66, inset.top + inset.height * 0.7)
-      ..lineTo(inset.left + inset.width * 0.78, inset.top + inset.height * 0.86);
+      ..lineTo(
+        inset.left + inset.width * 0.78,
+        inset.top + inset.height * 0.86,
+      );
     canvas.drawPath(path, crack);
   }
 }
