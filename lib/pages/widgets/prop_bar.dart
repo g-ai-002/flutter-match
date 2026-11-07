@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../game/daily_challenge.dart';
 import '../../game/props.dart';
 import '../../providers/settings_provider.dart';
+import '../../theme/palette.dart';
 import 'coin_chip.dart';
 
 /// 道具图标：小锤敲击、换位互换、洗牌重排。
@@ -29,8 +30,8 @@ class PropButton extends StatelessWidget {
   final bool compact;
   final VoidCallback onTap;
 
-  static const Color _gold = Color(0xFFD9985C);
-  static const Color _goldDeep = Color(0xFFB4781E);
+  static const Color _gold = appGold;
+  static const Color _goldDeep = appGoldDark;
 
   @override
   Widget build(BuildContext context) {
@@ -64,9 +65,7 @@ class PropButton extends StatelessWidget {
                   child: Icon(
                     propIcon(kind),
                     size: compact ? 18 : 20,
-                    color: active
-                        ? const Color(0xFF2A1206)
-                        : colors.onSurface,
+                    color: active ? appInkOnGold : colors.onSurface,
                   ),
                 ),
                 Positioned(
@@ -78,9 +77,7 @@ class PropButton extends StatelessWidget {
                       vertical: 0.5,
                     ),
                     decoration: BoxDecoration(
-                      color: empty
-                          ? colors.surfaceContainerHighest
-                          : _goldDeep,
+                      color: empty ? colors.surfaceContainerHighest : _goldDeep,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
@@ -107,8 +104,8 @@ class PropButton extends StatelessWidget {
 Future<void> showPropShop(
   BuildContext context, {
   required SettingsProvider settings,
-  required int Function(PropKind) countOf,
-  required ValueChanged<PropKind> onBought,
+  required PropStock stock,
+  ValueChanged<PropKind>? onBought,
 }) {
   final theme = Theme.of(context);
   return showModalBottomSheet<void>(
@@ -147,12 +144,12 @@ Future<void> showPropShop(
                 for (final kind in PropKind.values)
                   _ShopRow(
                     kind: kind,
-                    owned: countOf(kind),
+                    owned: stock.count(kind),
                     coins: settings.coins,
                     onBuy: () async {
-                      final bought = await settings.buyProp(kind);
+                      final bought = await settings.buyProp(kind, stock);
                       if (!bought) return;
-                      onBought(kind);
+                      onBought?.call(kind);
                       setState(() {});
                     },
                   ),
@@ -191,10 +188,10 @@ class _ShopRow extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFFD9985C).withValues(alpha: 0.16),
+              color: appGold.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(propIcon(kind), size: 20, color: const Color(0xFF8A6231)),
+            child: Icon(propIcon(kind), size: 20, color: appGoldDeep),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -231,7 +228,7 @@ class _ShopRow extends StatelessWidget {
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, 34),
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              backgroundColor: const Color(0xFFA63A2B),
+              backgroundColor: appRed,
             ),
             child: Text(
               affordable ? '${kind.price} 福币' : '福币不足',

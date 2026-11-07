@@ -7,11 +7,11 @@ import 'package:provider/provider.dart';
 import '../flame/match_game.dart';
 import '../game/levels.dart';
 import '../game/match_controller.dart';
+import '../game/scoring.dart';
 import '../models/level.dart';
 import '../providers/settings_provider.dart';
 import '../services/log_service.dart';
 import '../theme/app_theme.dart';
-import '../utils/constants.dart';
 import '../utils/immersive_landscape.dart';
 import 'level_select_page.dart';
 import 'widgets/game_hud.dart';
@@ -29,6 +29,7 @@ class GamePage extends StatefulWidget {
 
 class _GamePageState extends State<GamePage> {
   late final SettingsProvider _settings;
+  late final PropStock _stock;
   late final MatchController _controller;
   late final MatchGame _game;
   late final Widget _boardWidget;
@@ -40,14 +41,14 @@ class _GamePageState extends State<GamePage> {
   void initState() {
     super.initState();
     _settings = context.read<SettingsProvider>();
-    final stock = PropStock({
+    _stock = PropStock({
       for (final kind in PropKind.values) kind: _settings.propCount(kind),
-    });
+    }, (kind, count) => unawaited(_settings.setPropCount(kind, count)));
     _controller = MatchController(
       level: widget.level,
-      props: stock,
+      props: _stock,
       seed: widget.level.dailySeed,
-    )..onPropUsed = _persistProp;
+    );
     _game = MatchGame(
       controller: _controller,
       darkMode: _darkMode,
@@ -87,45 +88,31 @@ class _GamePageState extends State<GamePage> {
   }
 
   /// 通关结算：福币奖励、闯关进度或每日挑战成绩。
-  void _saveResult() {
+  void _saveResult() => unawaited(_recordWin());
+
+  Future<void> _recordWin() async {
     final stars = _controller.stars;
     final score = _controller.score;
-    unawaited(_settings.grantCoins(AppConstants.winCoins(stars)));
-    if (widget.level.isDaily) {
-      unawaited(_claimDaily(stars: stars, score: score));
-      return;
-    }
-    unawaited(
-      _settings.recordLevelResult(
-        levelId: widget.level.id,
-        stars: stars,
-        score: score,
-        levelCount: kLevels.length,
-      ),
-    );
-    LogService.info(
-      '关卡 ${widget.level.id} 记录成绩：$stars 星，$score 分，'
-      '福币 +${AppConstants.winCoins(stars)}',
-    );
-  }
-
-  Future<void> _claimDaily({required int stars, required int score}) async {
-    final key = widget.level.dailyKey;
-    if (key == null) return;
-    final reward = await _settings.recordDailyResult(
-      dateKey: key,
+    final dailyReward = await _settings.recordWin(
+      level: widget.level,
       stars: stars,
       score: score,
+      levelCount: kLevels.length,
     );
-    LogService.info('每日挑战 $key 记录成绩：$stars 星，$score 分，奖励 $reward 福币');
-    if (!mounted || reward <= 0) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('每日挑战首次通关，额外奖励 $reward 福币')),
-    );
-  }
-
-  void _persistProp(PropKind kind) {
-    unawaited(_settings.setPropCount(kind, _controller.propCount(kind)));
+    if (widget.level.isDaily) {
+      LogService.info(
+        '每日挑战 ${widget.level.dailyKey} 记录成绩：'
+        '$stars 星，$score 分，奖励 $dailyReward 福币',
+      );
+    } else {
+      LogService.info(
+        '关卡 ${widget.level.id} 记录成绩：$stars 星，$score 分，'
+        '福币 +${ScoreRules.rewardCoins(stars)}',
+      );
+    }
+    if (!mounted || dailyReward <= 0) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('每日挑战首次通关，额外奖励 $dailyReward 福币')));
   }
 
   void _onPropTap(PropKind kind) {
@@ -141,10 +128,9 @@ class _GamePageState extends State<GamePage> {
       showPropShop(
         context,
         settings: _settings,
-        countOf: _controller.propCount,
+        stock: _stock,
         onBought: (kind) {
-          _controller.addProp(kind);
-          _persistProp(kind);
+          setState(() {});
           LogService.info('购买道具 ${kind.label}，余额 ${_settings.coins} 福币');
         },
       ),
@@ -235,7 +221,8 @@ class _GamePageState extends State<GamePage> {
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final hasNext = nextLevelOf(widget.level.id) != null;
-    final prompt = _propPrompt ?? (_controller.hint != null ? '试试交换闪动的两枚棋子' : null);
+    final prompt =
+        _propPrompt ?? (_controller.hint != null ? '试试交换闪动的两枚棋子' : null);
 
     return BoardDisplayMode(
       child: Scaffold(

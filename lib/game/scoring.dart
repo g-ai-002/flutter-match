@@ -34,6 +34,9 @@ class ScoreRules {
       specials * perSpecial +
       iceBroken * perIce;
 
+  /// 通关福币奖励：基础 12 枚，每颗星再加 8 枚；未通关不发放。
+  static int rewardCoins(int stars) => stars <= 0 ? 0 : 12 + stars * 8;
+
   /// 按通关时剩余步数占比评星，未通关返回 0。
   static int starsFor({required int movesLeft, required int moves}) {
     if (moves <= 0) return 1;

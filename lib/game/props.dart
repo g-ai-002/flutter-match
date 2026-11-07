@@ -33,12 +33,15 @@ enum PropKind {
   String get storageKey => 'prop_$name';
 }
 
-/// 单局道具库存：只在内存中增减，落盘由界面层负责。
+/// 单局道具库存：局内唯一的事实源，数量变化时通过 [onChanged] 通知落盘。
 class PropStock {
-  PropStock([Map<PropKind, int>? counts])
+  PropStock([Map<PropKind, int>? counts, this.onChanged])
     : _counts = {for (final kind in PropKind.values) kind: counts?[kind] ?? 0};
 
   final Map<PropKind, int> _counts;
+
+  /// 库存变化回调，参数为道具种类与最新数量。
+  final void Function(PropKind kind, int count)? onChanged;
 
   int count(PropKind kind) => _counts[kind] ?? 0;
 
@@ -48,12 +51,12 @@ class PropStock {
   bool take(PropKind kind) {
     if (!has(kind)) return false;
     _counts[kind] = count(kind) - 1;
+    onChanged?.call(kind, count(kind));
     return true;
   }
 
   void add(PropKind kind, [int amount = 1]) {
     _counts[kind] = count(kind) + amount;
+    onChanged?.call(kind, count(kind));
   }
-
-  Map<PropKind, int> get snapshot => Map.unmodifiable(_counts);
 }

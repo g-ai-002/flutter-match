@@ -40,9 +40,6 @@ class MatchController extends ChangeNotifier {
   final HintAdvisor _advisor;
   final PropStock _props;
 
-  /// 道具消耗后的回调，界面层据此把新库存写回本地存储。
-  ValueChanged<PropKind>? onPropUsed;
-
   int _movesLeft;
   int _score = 0;
   int _iceBroken = 0;
@@ -78,6 +75,9 @@ class MatchController extends ChangeNotifier {
   /// 当前待命中的道具；null 表示普通消除模式。
   PropKind? get activeProp => _activeProp;
 
+  /// 局内道具库存，道具铺与控制器共用同一实例。
+  PropStock get props => _props;
+
   int propCount(PropKind kind) => _props.count(kind);
 
   bool get canInteract => _status == GameStatus.ready;
@@ -99,9 +99,8 @@ class MatchController extends ChangeNotifier {
       GoalProgress(goal: goal, current: progressValue(goal)),
   ];
 
-  bool get _allGoalsDone => level.goals.every(
-    (goal) => progressValue(goal) >= goal.target,
-  );
+  bool get _allGoalsDone =>
+      level.goals.every((goal) => progressValue(goal) >= goal.target);
 
   /// 取出本轮待播放的步骤，由 Flame 组件持有。
   List<BoardStep> takeSteps() {
@@ -156,18 +155,13 @@ class MatchController extends ChangeNotifier {
   void swap(int a, int b) {
     if (!canInteract) return;
     _activeProp = null;
-    _hint = null;
-    _hintTimer?.cancel();
+    _clearHint();
     final outcome = _engine.trySwap(a, b);
-    if (!outcome.valid) {
-      _pending = outcome.steps;
-      _status = GameStatus.animating;
-      _epoch++;
-      SoundService.play(FeedbackKind.invalid);
-    } else {
-      _movesLeft--;
-      _beginSteps(outcome.steps, FeedbackKind.swap);
-    }
+    if (outcome.valid) _movesLeft--;
+    _beginSteps(
+      outcome.steps,
+      outcome.valid ? FeedbackKind.swap : FeedbackKind.invalid,
+    );
     notifyListeners();
   }
 
@@ -178,22 +172,15 @@ class MatchController extends ChangeNotifier {
     if (!canInteract || !_props.has(kind)) return false;
     if (kind == PropKind.shuffle) {
       _props.take(kind);
-      _activeProp = null;
-      _selected = -1;
-      _hint = null;
-      _hintTimer?.cancel();
-      _engine.shuffle();
-      _boardRevision++;
+      _shuffleBoard();
       LogService.info('关卡 ${level.id} 使用洗牌道具');
       SoundService.play(FeedbackKind.prop);
-      _notifyPropUsed(kind);
       notifyListeners();
       return true;
     }
     _activeProp = _activeProp == kind ? null : kind;
     _selected = -1;
-    _hint = null;
-    _hintTimer?.cancel();
+    _clearHint();
     SoundService.tap();
     notifyListeners();
     return true;
@@ -207,21 +194,13 @@ class MatchController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 道具铺购买成功后同步局内库存。
-  void addProp(PropKind kind) {
-    _props.add(kind);
-    notifyListeners();
-  }
-
   void _useHammer(int index) {
     final steps = _engine.smash(index);
     if (steps.isEmpty) return;
     _props.take(PropKind.hammer);
-    _activeProp = null;
-    _selected = -1;
+    _resetInteraction();
     LogService.info('关卡 ${level.id} 使用小锤：格 $index');
     _beginSteps(steps, FeedbackKind.prop);
-    _notifyPropUsed(PropKind.hammer);
     notifyListeners();
   }
 
@@ -247,11 +226,9 @@ class MatchController extends ChangeNotifier {
       return;
     }
     _props.take(PropKind.swap);
-    _activeProp = null;
-    _selected = -1;
+    _resetInteraction();
     LogService.info('关卡 ${level.id} 使用换位：$from ↔ $index');
     _beginSteps(outcome.steps, FeedbackKind.prop);
-    _notifyPropUsed(PropKind.swap);
     notifyListeners();
   }
 
@@ -262,7 +239,25 @@ class MatchController extends ChangeNotifier {
     SoundService.play(sound);
   }
 
-  void _notifyPropUsed(PropKind kind) => onPropUsed?.call(kind);
+  /// 清空提示及其计时器。
+  void _clearHint() {
+    _hint = null;
+    _hintTimer?.cancel();
+  }
+
+  /// 清空选中、提示与道具待命状态，切换模式时统一调用。
+  void _resetInteraction() {
+    _activeProp = null;
+    _selected = -1;
+    _clearHint();
+  }
+
+  /// 重排棋盘并同步画面版本，道具与手动重排共用。
+  void _shuffleBoard() {
+    _engine.shuffle();
+    _resetInteraction();
+    _boardRevision++;
+  }
 
   /// 组件每播放完一条消除步骤时回调，推进分数与目标进度。
   void onStepShown(BoardStep step) {
@@ -307,8 +302,7 @@ class MatchController extends ChangeNotifier {
     }
     _status = GameStatus.ready;
     if (_engine.findHint() == null) {
-      _engine.shuffle();
-      _boardRevision++;
+      _shuffleBoard();
       _autoShuffled = true;
       LogService.info('关卡 ${level.id} 无可消除组合，自动重排');
     }
@@ -346,32 +340,25 @@ class MatchController extends ChangeNotifier {
   /// 手动重排：不消耗步数，洗牌后清空选中与提示。
   void shuffleBoard() {
     if (!canInteract) return;
-    _engine.shuffle();
-    _selected = -1;
-    _activeProp = null;
-    _hint = null;
-    _boardRevision++;
+    _shuffleBoard();
     LogService.info('关卡 ${level.id} 手动重排棋盘');
     notifyListeners();
   }
 
   /// 重开本关：分数、步数与冰层全部重置，已消耗的道具不返还。
   void restart() {
-    _hintTimer?.cancel();
     _engine.resetBoard();
     _movesLeft = level.moves;
     _score = 0;
     _iceBroken = 0;
     _combo = 0;
-    _selected = -1;
-    _activeProp = null;
-    _hint = null;
     _stars = 0;
     _pending = const [];
     _status = GameStatus.ready;
     _collected.clear();
-    _boardRevision++;
     _autoShuffled = false;
+    _resetInteraction();
+    _boardRevision++;
     notifyListeners();
   }
 

@@ -3,6 +3,7 @@ import 'package:fortune_match/game/daily_challenge.dart';
 import 'package:fortune_match/game/levels.dart';
 import 'package:fortune_match/game/logic_rate.dart';
 import 'package:fortune_match/game/props.dart';
+import 'package:fortune_match/game/scoring.dart';
 import 'package:fortune_match/providers/settings_provider.dart';
 import 'package:fortune_match/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +31,7 @@ void main() {
     expect(storage.bestScoreFor(1), 3200);
     expect(storage.unlockedLevel, 2);
     expect(storage.totalStars(kLevels.length), 2);
+    expect(storage.clearedCount(kLevels.length), 1);
 
     // 更差的成绩不会覆盖旧记录。
     await storage.recordLevelResult(
@@ -100,15 +102,74 @@ void main() {
     final storage = await StorageService.instance;
     await storage.addCoins(PropKind.shuffle.price + 5);
     final settings = SettingsProvider(storage);
-    final before = settings.propCount(PropKind.shuffle);
+    final stock = PropStock({
+      PropKind.shuffle: 0,
+      PropKind.swap: 0,
+    }, (kind, count) => storage.setPropCount(kind, count));
 
-    expect(await settings.buyProp(PropKind.shuffle), isTrue);
-    expect(settings.propCount(PropKind.shuffle), before + 1);
+    expect(await settings.buyProp(PropKind.shuffle, stock), isTrue);
+    expect(stock.count(PropKind.shuffle), 1);
     expect(settings.coins, 5);
 
-    expect(await settings.buyProp(PropKind.swap), isFalse);
-    expect(settings.propCount(PropKind.swap), PropKind.swap.initialStock);
+    expect(await settings.buyProp(PropKind.swap, stock), isFalse);
+    expect(stock.count(PropKind.swap), 0);
     expect(settings.coins, 5);
+  });
+
+  test('通关结算按星级发放福币并记录闯关进度', () async {
+    final storage = await StorageService.instance;
+    final settings = SettingsProvider(storage);
+
+    final reward = await settings.recordWin(
+      level: kLevels.first,
+      stars: 2,
+      score: 3200,
+      levelCount: kLevels.length,
+    );
+
+    expect(reward, 0, reason: '闯关关卡没有每日挑战奖励');
+    expect(settings.coins, ScoreRules.rewardCoins(2));
+    expect(storage.starsFor(kLevels.first.id), 2);
+    expect(storage.bestScoreFor(kLevels.first.id), 3200);
+    expect(storage.unlockedLevel, 2);
+  });
+
+  test('每日挑战结算同时发放星级奖励与首次通关福币', () async {
+    final storage = await StorageService.instance;
+    final settings = SettingsProvider(storage);
+    final daily = DailyChallenge.of(DateTime(2026, 11, 8));
+
+    final first = await settings.recordWin(
+      level: daily.level,
+      stars: 2,
+      score: 3000,
+      levelCount: kLevels.length,
+    );
+    expect(first, DailyChallenge.rewardCoins);
+    expect(
+      settings.coins,
+      ScoreRules.rewardCoins(2) + DailyChallenge.rewardCoins,
+    );
+    expect(storage.dailyStars(daily.dateKey), 2);
+    expect(storage.dailyBestScore(daily.dateKey), 3000);
+    expect(storage.unlockedLevel, 1, reason: '每日挑战不影响闯关解锁');
+    expect(storage.starsFor(daily.level.id), 0);
+
+    final again = await settings.recordWin(
+      level: daily.level,
+      stars: 3,
+      score: 4200,
+      levelCount: kLevels.length,
+    );
+    expect(again, 0);
+    expect(
+      settings.coins,
+      ScoreRules.rewardCoins(2) +
+          DailyChallenge.rewardCoins +
+          ScoreRules.rewardCoins(3),
+    );
+    expect(storage.dailyStars(daily.dateKey), 3);
+    expect(storage.dailyBestScore(daily.dateKey), 4200);
   });
 
   test('每日挑战首次通关发放福币，重复通关不再发放', () async {

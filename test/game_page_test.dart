@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/game/levels.dart';
+import 'package:fortune_match/game/props.dart';
 import 'package:fortune_match/pages/game_page.dart';
 import 'package:fortune_match/pages/widgets/prop_bar.dart';
 import 'package:fortune_match/providers/settings_provider.dart';
@@ -111,5 +112,38 @@ void main() {
 
     expect(find.text('道具铺'), findsOneWidget);
     expect(find.text('福币不足'), findsWidgets);
+  });
+
+  testWidgets('道具铺购买后库存同步到底部工具条并写入本地存储', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'prop_hammer': 0,
+      'prop_swap': 0,
+      'prop_shuffle': 0,
+      'fortune_coins': 100,
+    });
+    StorageService.resetForTests();
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    final settings = SettingsProvider(storage);
+    await tester.pumpWidget(_wrap(settings));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.gavel_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('道具铺'), findsOneWidget);
+
+    await tester.tap(find.text('${PropKind.hammer.price} 福币'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('已有 1'), findsOneWidget);
+    expect(find.text('×1'), findsOneWidget);
+    expect(settings.coins, 100 - PropKind.hammer.price);
+    expect(settings.propCount(PropKind.hammer), 1);
   });
 }

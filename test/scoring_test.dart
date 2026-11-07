@@ -34,4 +34,12 @@ void main() {
     expect(ScoreRules.starsFor(movesLeft: 0, moves: 20), 1);
     expect(ScoreRules.starsFor(movesLeft: 5, moves: 0), 1);
   });
+
+  test('通关福币按星级递增，未通关不发放', () {
+    expect(ScoreRules.rewardCoins(0), 0);
+    expect(ScoreRules.rewardCoins(1), 20);
+    expect(ScoreRules.rewardCoins(2), 28);
+    expect(ScoreRules.rewardCoins(3), 36);
+    expect(ScoreRules.rewardCoins(3), greaterThan(ScoreRules.rewardCoins(2)));
+  });
 }

@@ -18,9 +18,10 @@ MatchController _controller({
   Map<PropKind, int>? stock,
   Map<int, int> ice = const {},
   int seed = 7,
+  void Function(PropKind kind, int count)? onStockChanged,
 }) => MatchController(
   level: _level(ice: ice),
-  props: PropStock(stock),
+  props: PropStock(stock, onStockChanged),
   seed: seed,
 );
 
@@ -33,7 +34,10 @@ void main() {
   tearDown(SoundService.reset);
 
   test('道具库存增减，数量不足时不扣减', () {
-    final stock = PropStock({PropKind.hammer: 2});
+    final changes = <String>[];
+    final stock = PropStock({
+      PropKind.hammer: 2,
+    }, (kind, count) => changes.add('${kind.name}:$count'));
     expect(stock.count(PropKind.hammer), 2);
     expect(stock.count(PropKind.swap), 0);
     expect(stock.has(PropKind.swap), isFalse);
@@ -42,10 +46,11 @@ void main() {
     expect(stock.count(PropKind.hammer), 1);
     expect(stock.take(PropKind.swap), isFalse);
     expect(stock.count(PropKind.swap), 0);
+    expect(changes, ['hammer:1'], reason: '数量不足时不触发变更回调');
 
     stock.add(PropKind.swap, 3);
     expect(stock.count(PropKind.swap), 3);
-    expect(stock.snapshot[PropKind.swap], 3);
+    expect(changes, ['hammer:1', 'swap:3']);
   });
 
   test('库存为空时无法启用道具', () {
@@ -56,12 +61,12 @@ void main() {
   });
 
   test('小锤敲掉指定棋子，不消耗步数并破冰', () {
+    final used = <PropKind>[];
     final controller = _controller(
       stock: {PropKind.hammer: 1},
       ice: {12: 1},
+      onStockChanged: (kind, _) => used.add(kind),
     );
-    final used = <PropKind>[];
-    controller.onPropUsed = used.add;
     final moves = controller.movesLeft;
     final before = controller.board.tiles[12]!;
 
@@ -135,21 +140,30 @@ void main() {
   test('洗牌道具立即重排并消耗一枚', () {
     final controller = _controller(stock: {PropKind.shuffle: 1});
     final revision = controller.boardRevision;
-    final ids = controller.board.tiles.whereType<Tile>().map((t) => t.id).toSet();
+    final ids = controller.board.tiles
+        .whereType<Tile>()
+        .map((t) => t.id)
+        .toSet();
 
     expect(controller.activateProp(PropKind.shuffle), isTrue);
     expect(controller.propCount(PropKind.shuffle), 0);
     expect(controller.boardRevision, revision + 1);
     expect(controller.activeProp, isNull);
-    final after = controller.board.tiles.whereType<Tile>().map((t) => t.id).toSet();
+    final after = controller.board.tiles
+        .whereType<Tile>()
+        .map((t) => t.id)
+        .toSet();
     expect(after, ids);
     expect(controller.board.tiles.every((tile) => tile != null), isTrue);
   });
 
-  test('道具铺购买后局内库存同步增加', () {
+  test('道具铺补充库存后控制器立即可用', () {
     final controller = _controller(stock: {PropKind.hammer: 0});
+    final stock = controller.props;
     expect(controller.propCount(PropKind.hammer), 0);
-    controller.addProp(PropKind.hammer);
+
+    stock.add(PropKind.hammer);
+
     expect(controller.propCount(PropKind.hammer), 1);
     expect(controller.activateProp(PropKind.hammer), isTrue);
     controller.cancelProp();

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import '../game/logic_rate.dart';
 import '../game/props.dart';
+import '../game/scoring.dart';
+import '../models/level.dart';
 import '../services/music_service.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
@@ -47,21 +49,19 @@ class SettingsProvider extends ChangeNotifier {
   int bestScoreFor(int levelId) => _storage.bestScoreFor(levelId);
   int get unlockedLevel => _storage.unlockedLevel;
   int totalStars(int levelCount) => _storage.totalStars(levelCount);
+  int clearedCount(int levelCount) => _storage.clearedCount(levelCount);
 
   /// 福币余额与道具库存。
   int get coins => _storage.coins;
   int propCount(PropKind kind) => _storage.propCount(kind);
 
-  Future<void> grantCoins(int amount) async {
-    await _storage.addCoins(amount);
-    notifyListeners();
-  }
-
-  /// 购买一枚道具；福币不足时返回 false。
-  Future<bool> buyProp(PropKind kind) async {
+  /// 购买一枚道具：扣除福币后直接补充到局内库存。
+  ///
+  /// 库存变化由 [PropStock.onChanged] 负责落盘，避免同一数量写两次。
+  Future<bool> buyProp(PropKind kind, PropStock stock) async {
     if (coins < kind.price) return false;
     await _storage.addCoins(-kind.price);
-    await _storage.setPropCount(kind, propCount(kind) + 1);
+    stock.add(kind);
     notifyListeners();
     return true;
   }
@@ -74,34 +74,34 @@ class SettingsProvider extends ChangeNotifier {
   int dailyStars(String dateKey) => _storage.dailyStars(dateKey);
   int dailyBestScore(String dateKey) => _storage.dailyBestScore(dateKey);
 
-  /// 记录每日挑战成绩，返回当天首次通关的福币奖励（已重复领取则为 0）。
-  Future<int> recordDailyResult({
-    required String dateKey,
-    required int stars,
-    required int score,
-  }) async {
-    final reward = await _storage.recordDailyResult(
-      dateKey: dateKey,
-      stars: stars,
-      score: score,
-    );
-    notifyListeners();
-    return reward;
-  }
-
-  Future<void> recordLevelResult({
-    required int levelId,
+  /// 通关结算：发放福币并记录闯关或每日挑战成绩。
+  ///
+  /// 返回值是每日挑战当天首次通关的额外福币奖励，闯关关卡返回 0。
+  Future<int> recordWin({
+    required Level level,
     required int stars,
     required int score,
     required int levelCount,
-  }) => _update(
-    () => _storage.recordLevelResult(
-      levelId: levelId,
-      stars: stars,
-      score: score,
-      levelCount: levelCount,
-    ),
-  );
+  }) async {
+    await _storage.addCoins(ScoreRules.rewardCoins(stars));
+    final dailyReward = level.isDaily
+        ? await _storage.recordDailyResult(
+            dateKey: level.dailyKey!,
+            stars: stars,
+            score: score,
+          )
+        : 0;
+    if (!level.isDaily) {
+      await _storage.recordLevelResult(
+        levelId: level.id,
+        stars: stars,
+        score: score,
+        levelCount: levelCount,
+      );
+    }
+    notifyListeners();
+    return dailyReward;
+  }
 
   Future<void> resetProgress() => _update(_storage.resetProgress);
 
