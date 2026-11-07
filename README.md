@@ -31,13 +31,13 @@
 
 ## 下载
 
-v0.1.0（最新发布）：[Gitea Release](http://192.168.31.120:3020/GTech/flutter-match/releases/tag/v0.1.0)
+v0.1.1（最新发布）：[Gitea Release](http://192.168.31.120:3020/GTech/flutter-match/releases/tag/v0.1.1)
 
 | 平台 | 产物 |
 | --- | --- |
-| Android (arm64) | `flutter-match-0.1.0-android-aarch64.apk` |
-| Windows (x64, Win10+) | `flutter-match-0.1.0-windows-x86_64.zip` |
-| Web | `flutter-match-0.1.0-web.zip`（解压后起静态服务器） |
+| Android (arm64) | `flutter-match-0.1.1-android-aarch64.apk` |
+| Windows (x64, Win10+) | `flutter-match-0.1.1-windows-x86_64.zip` |
+| Web | `flutter-match-0.1.1-web.zip`（解压后起静态服务器） |
 
 Web 试玩站点由 `build` 工作流推送到 `tea-pages` 分支，按版本目录访问。
 
@@ -75,4 +75,5 @@ lib/
 
 | 版本 | 说明 |
 | --- | --- |
+| v0.1.1 | 修复窄屏首页溢出，入口在手机宽度下改为上下堆叠 |
 | v0.1.0 | 首个版本：三消核心、特殊棋子、20 关闯关、冰层、三星评级、合成音效与三端发布 |
