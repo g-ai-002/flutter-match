@@ -5,19 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
 import 'log_service.dart';
+import 'synth_worker.dart';
 import 'tone_synth.dart';
 
 /// 反馈类型，决定提示音与震动的强弱。
-enum FeedbackKind {
-  swap,
-  invalid,
-  clear,
-  clearBig,
-  special,
-  ice,
-  win,
-  lose,
-}
+enum FeedbackKind { swap, invalid, clear, clearBig, special, ice, win, lose }
 
 /// 操作反馈音效与触感。
 ///
@@ -153,10 +145,11 @@ class SoundService {
     try {
       final soloud = SoLoud.instance;
       if (!soloud.isInitialized) await soloud.init();
-      for (final kind in FeedbackKind.values) {
-        _sources[kind] = await soloud.loadMem(
-          'fortune-${kind.name}.wav',
-          clipOf(kind),
+      final clips = await runSynthTask(_synthesizeAll);
+      for (final entry in clips.entries) {
+        _sources[entry.key] = await soloud.loadMem(
+          'fortune-${entry.key.name}.wav',
+          entry.value,
         );
       }
     } catch (error) {
@@ -166,6 +159,12 @@ class SoundService {
       LogService.warning('音效初始化失败，已静音: $error');
     }
   }
+
+  /// 一次合成全部反馈音效，交给后台 isolate 统一执行。
+  static Map<FeedbackKind, Uint8List> _synthesizeAll() => {
+    for (final kind in FeedbackKind.values)
+      kind: synthesizeWav(_presets[kind]!),
+  };
 
   /// 某个反馈对应的合成音频，供测试校验音效配方。
   @visibleForTesting

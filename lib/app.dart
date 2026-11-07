@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'pages/home_page.dart';
 import 'providers/settings_provider.dart';
 import 'services/music_service.dart';
+import 'services/sound_service.dart';
 import 'services/storage_service.dart';
 import 'theme/app_theme.dart';
 import 'utils/constants.dart';
@@ -25,6 +28,12 @@ class _FortuneMatchAppState extends State<FortuneMatchApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // 首帧之后再合成音频，音效与音乐都不占用启动时间。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(SoundService.init());
+      // Web 需要用户手势才能播放，首次点击页面时由 App 的监听器启动。
+      if (!kIsWeb) unawaited(MusicService.start());
+    });
   }
 
   @override

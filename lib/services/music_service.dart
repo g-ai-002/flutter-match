@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
 import 'log_service.dart';
+import 'synth_worker.dart';
 import 'tone_synth.dart';
 
 /// 背景音乐：运行时合成五声音阶循环，与音效共用 SoLoud 音频引擎。
@@ -55,7 +56,10 @@ class MusicService {
     try {
       final soloud = SoLoud.instance;
       if (!soloud.isInitialized) await soloud.init();
-      _source ??= await soloud.loadMem('fortune-bgm.wav', synthesizeMusicWav());
+      if (_source == null) {
+        final bytes = await runSynthTask(() => synthesizeMusicWav());
+        _source = await soloud.loadMem('fortune-bgm.wav', bytes);
+      }
     } catch (error) {
       _failed = true;
       debugPrint('[MusicService] 背景音乐加载失败: $error');
