@@ -26,6 +26,13 @@ class LevelGoal {
     GoalKind.ice => '破冰 $target 块',
   };
 
+  /// 单行紧凑写法，用棋子纹样代替名称，适合多目标并排展示。
+  String get shortLabel => switch (kind) {
+    GoalKind.score => '得分 $target',
+    GoalKind.collect => '收集${type?.glyph ?? ''} $target',
+    GoalKind.ice => '破冰 $target',
+  };
+
   /// 目标进度读数的单位后缀。
   String get unit => switch (kind) {
     GoalKind.score => '分',
@@ -45,6 +52,8 @@ class Level {
     required this.goals,
     this.palette = 6,
     this.ice = const {},
+    this.dailyKey,
+    this.dailySeed,
   });
 
   final int id;
@@ -60,7 +69,18 @@ class Level {
   /// 初始冰层：格子下标 → 冰层数（1 或 2）。
   final Map<int, int> ice;
 
+  /// 每日挑战的日期键；闯关关卡为 null。
+  final String? dailyKey;
+
+  /// 每日挑战的棋盘种子，同一天开局一致。
+  final int? dailySeed;
+
+  bool get isDaily => dailyKey != null;
+
   int get cellCount => cols * rows;
 
   String get sizeLabel => '$cols × $rows';
+
+  /// HUD 首行的关卡标识，每日挑战不显示关卡序号。
+  String get heading => isDaily ? '每日挑战 · $sizeLabel' : '第 $id 关 · $sizeLabel';
 }

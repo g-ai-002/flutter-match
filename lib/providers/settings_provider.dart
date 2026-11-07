@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../game/logic_rate.dart';
+import '../game/props.dart';
 import '../services/music_service.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
@@ -46,6 +47,47 @@ class SettingsProvider extends ChangeNotifier {
   int bestScoreFor(int levelId) => _storage.bestScoreFor(levelId);
   int get unlockedLevel => _storage.unlockedLevel;
   int totalStars(int levelCount) => _storage.totalStars(levelCount);
+
+  /// 福币余额与道具库存。
+  int get coins => _storage.coins;
+  int propCount(PropKind kind) => _storage.propCount(kind);
+
+  Future<void> grantCoins(int amount) async {
+    await _storage.addCoins(amount);
+    notifyListeners();
+  }
+
+  /// 购买一枚道具；福币不足时返回 false。
+  Future<bool> buyProp(PropKind kind) async {
+    if (coins < kind.price) return false;
+    await _storage.addCoins(-kind.price);
+    await _storage.setPropCount(kind, propCount(kind) + 1);
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> setPropCount(PropKind kind, int value) async {
+    await _storage.setPropCount(kind, value);
+    notifyListeners();
+  }
+
+  int dailyStars(String dateKey) => _storage.dailyStars(dateKey);
+  int dailyBestScore(String dateKey) => _storage.dailyBestScore(dateKey);
+
+  /// 记录每日挑战成绩，返回当天首次通关的福币奖励（已重复领取则为 0）。
+  Future<int> recordDailyResult({
+    required String dateKey,
+    required int stars,
+    required int score,
+  }) async {
+    final reward = await _storage.recordDailyResult(
+      dateKey: dateKey,
+      stars: stars,
+      score: score,
+    );
+    notifyListeners();
+    return reward;
+  }
 
   Future<void> recordLevelResult({
     required int levelId,

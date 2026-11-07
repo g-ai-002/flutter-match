@@ -1,7 +1,7 @@
 import '../models/level.dart';
 import '../models/tile.dart';
 
-/// 关卡数据表：20 个手工关卡，棋盘规格、步数、目标与冰层由浅入深。
+/// 关卡数据表：25 个手工关卡，棋盘规格、步数、目标与冰层由浅入深。
 ///
 /// 只放数据与排版辅助函数，查询与跳转逻辑放在 `levels.dart`。
 List<Level> buildLevelCatalog() => [
@@ -225,6 +225,84 @@ List<Level> buildLevelCatalog() => [
       LevelGoal.collect(TileType.lotus, 16),
       LevelGoal.score(5000),
     ],
+  ),
+  // 第 21 关起为三目标混排：分数、收集与破冰同时压在同一局里。
+  const Level(
+    id: 21,
+    name: '金玉同辉',
+    cols: 9,
+    rows: 9,
+    moves: 22,
+    goals: [
+      LevelGoal.score(6800),
+      LevelGoal.collect(TileType.ingot, 18),
+    ],
+  ),
+  Level(
+    id: 22,
+    name: '瓷纹冰裂',
+    cols: 9,
+    rows: 9,
+    moves: 24,
+    goals: const [LevelGoal.collect(TileType.porcelain, 16), LevelGoal.ice(6)],
+    ice: _spots(9, 2, const [
+      (0, 4),
+      (2, 4),
+      (4, 4),
+      (6, 4),
+      (8, 4),
+      (1, 1),
+      (5, 1),
+      (7, 7),
+    ]),
+  ),
+  Level(
+    id: 23,
+    name: '梅影重重',
+    cols: 9,
+    rows: 9,
+    moves: 24,
+    goals: const [LevelGoal.score(7200), LevelGoal.ice(10)],
+    ice: {
+      ..._band(9, 2, 2, colStep: 2),
+      ..._band(9, 6, 6, colStep: 2, offset: 1),
+      ..._band(9, 4, 4, colStep: 4),
+    },
+  ),
+  const Level(
+    id: 24,
+    name: '灯玉相映',
+    cols: 9,
+    rows: 9,
+    moves: 22,
+    goals: [
+      LevelGoal.collect(TileType.jade, 20),
+      LevelGoal.collect(TileType.lantern, 20),
+      LevelGoal.score(5000),
+    ],
+  ),
+  Level(
+    id: 25,
+    name: '福运终章',
+    cols: 9,
+    rows: 9,
+    moves: 26,
+    goals: const [
+      LevelGoal.collect(TileType.coin, 20),
+      LevelGoal.ice(12),
+      LevelGoal.score(6000),
+    ],
+    ice: {
+      ..._band(9, 0, 0, colStep: 2),
+      ..._band(9, 8, 8, colStep: 2, offset: 1),
+      ..._spots(9, 2, const [
+        (2, 2),
+        (6, 2),
+        (2, 4),
+        (6, 4),
+        (4, 6),
+      ]),
+    },
   ),
 ];
 

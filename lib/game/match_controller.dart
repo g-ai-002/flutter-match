@@ -12,24 +12,36 @@ import 'engine.dart';
 import 'game_status.dart';
 import 'goal_progress.dart';
 import 'hint_advisor.dart';
+import 'props.dart';
 import 'scoring.dart';
 
 export 'game_status.dart';
 export 'goal_progress.dart';
+export 'props.dart';
 
 /// 关卡控制器：衔接三消引擎、计分目标与 Flame 动画队列。
 ///
 /// 引擎在交换时一次性算出整段连锁的动画脚本，Flame 组件逐条播放，
 /// 每播完一条由组件回调 [onStepShown]，分数与目标进度随之推进。
+/// 道具同样通过引擎生成脚本，只是不消耗步数。
 class MatchController extends ChangeNotifier {
-  MatchController({required this.level, int? seed, HintAdvisor? hintAdvisor})
-    : _engine = MatchEngine(level: level, seed: seed),
-      _advisor = hintAdvisor ?? HintAdvisor(random: math.Random(seed)),
-      _movesLeft = level.moves;
+  MatchController({
+    required this.level,
+    int? seed,
+    HintAdvisor? hintAdvisor,
+    PropStock? props,
+  }) : _engine = MatchEngine(level: level, seed: seed),
+       _advisor = hintAdvisor ?? HintAdvisor(random: math.Random(seed)),
+       _props = props ?? PropStock(),
+       _movesLeft = level.moves;
 
   final Level level;
   final MatchEngine _engine;
   final HintAdvisor _advisor;
+  final PropStock _props;
+
+  /// 道具消耗后的回调，界面层据此把新库存写回本地存储。
+  ValueChanged<PropKind>? onPropUsed;
 
   int _movesLeft;
   int _score = 0;
@@ -38,6 +50,7 @@ class MatchController extends ChangeNotifier {
   int _selected = -1;
   int _stars = 0;
   GameStatus _status = GameStatus.ready;
+  PropKind? _activeProp;
   SwapHint? _hint;
   Timer? _hintTimer;
 
@@ -61,6 +74,11 @@ class MatchController extends ChangeNotifier {
   bool get autoShuffled => _autoShuffled;
   int get stars => _stars;
   int get levelId => level.id;
+
+  /// 当前待命中的道具；null 表示普通消除模式。
+  PropKind? get activeProp => _activeProp;
+
+  int propCount(PropKind kind) => _props.count(kind);
 
   bool get canInteract => _status == GameStatus.ready;
 
@@ -93,9 +111,22 @@ class MatchController extends ChangeNotifier {
   }
 
   /// 点选棋子：首次选中，再点相邻棋子交换，点自身取消。
+  ///
+  /// 道具待命时改为道具操作：小锤一步生效，换位需要依次点两枚棋子。
   void tapCell(int index) {
     if (!canInteract) return;
     if (board.tileAt(index) == null) return;
+    switch (_activeProp) {
+      case PropKind.hammer:
+        _useHammer(index);
+        return;
+      case PropKind.swap:
+        _pickForSwap(index);
+        return;
+      case PropKind.shuffle:
+      case null:
+        break;
+    }
     if (_selected == index) {
       _selected = -1;
       notifyListeners();
@@ -124,20 +155,114 @@ class MatchController extends ChangeNotifier {
   /// 尝试交换，成功时扣一步并播放整段连锁，失败时播放回退动画。
   void swap(int a, int b) {
     if (!canInteract) return;
+    _activeProp = null;
     _hint = null;
     _hintTimer?.cancel();
     final outcome = _engine.trySwap(a, b);
-    _pending = outcome.steps;
-    _status = GameStatus.animating;
-    _epoch++;
     if (!outcome.valid) {
+      _pending = outcome.steps;
+      _status = GameStatus.animating;
+      _epoch++;
       SoundService.play(FeedbackKind.invalid);
     } else {
       _movesLeft--;
-      SoundService.play(FeedbackKind.swap);
+      _beginSteps(outcome.steps, FeedbackKind.swap);
     }
     notifyListeners();
   }
+
+  /// 启用道具：洗牌立即生效，小锤与换位进入待点击状态。
+  ///
+  /// 库存不足时返回 false，由界面层引导到道具铺。
+  bool activateProp(PropKind kind) {
+    if (!canInteract || !_props.has(kind)) return false;
+    if (kind == PropKind.shuffle) {
+      _props.take(kind);
+      _activeProp = null;
+      _selected = -1;
+      _hint = null;
+      _hintTimer?.cancel();
+      _engine.shuffle();
+      _boardRevision++;
+      LogService.info('关卡 ${level.id} 使用洗牌道具');
+      SoundService.play(FeedbackKind.prop);
+      _notifyPropUsed(kind);
+      notifyListeners();
+      return true;
+    }
+    _activeProp = _activeProp == kind ? null : kind;
+    _selected = -1;
+    _hint = null;
+    _hintTimer?.cancel();
+    SoundService.tap();
+    notifyListeners();
+    return true;
+  }
+
+  /// 取消道具待命状态。
+  void cancelProp() {
+    if (_activeProp == null) return;
+    _activeProp = null;
+    _selected = -1;
+    notifyListeners();
+  }
+
+  /// 道具铺购买成功后同步局内库存。
+  void addProp(PropKind kind) {
+    _props.add(kind);
+    notifyListeners();
+  }
+
+  void _useHammer(int index) {
+    final steps = _engine.smash(index);
+    if (steps.isEmpty) return;
+    _props.take(PropKind.hammer);
+    _activeProp = null;
+    _selected = -1;
+    LogService.info('关卡 ${level.id} 使用小锤：格 $index');
+    _beginSteps(steps, FeedbackKind.prop);
+    _notifyPropUsed(PropKind.hammer);
+    notifyListeners();
+  }
+
+  void _pickForSwap(int index) {
+    if (_selected < 0) {
+      _selected = index;
+      SoundService.tap();
+      notifyListeners();
+      return;
+    }
+    if (_selected == index) {
+      _selected = -1;
+      notifyListeners();
+      return;
+    }
+    final from = _selected;
+    final outcome = _engine.trySwap(from, index, anywhere: true);
+    if (!outcome.valid) {
+      // 没形成消除就退回，道具不消耗，并把锚点挪到刚点的棋子上。
+      _selected = index;
+      SoundService.play(FeedbackKind.invalid);
+      notifyListeners();
+      return;
+    }
+    _props.take(PropKind.swap);
+    _activeProp = null;
+    _selected = -1;
+    LogService.info('关卡 ${level.id} 使用换位：$from ↔ $index');
+    _beginSteps(outcome.steps, FeedbackKind.prop);
+    _notifyPropUsed(PropKind.swap);
+    notifyListeners();
+  }
+
+  void _beginSteps(List<BoardStep> steps, FeedbackKind sound) {
+    _pending = steps;
+    _status = GameStatus.animating;
+    _epoch++;
+    SoundService.play(sound);
+  }
+
+  void _notifyPropUsed(PropKind kind) => onPropUsed?.call(kind);
 
   /// 组件每播放完一条消除步骤时回调，推进分数与目标进度。
   void onStepShown(BoardStep step) {
@@ -164,7 +289,7 @@ class MatchController extends ChangeNotifier {
     _pending = const [];
     _autoShuffled = false;
     if (_allGoalsDone) {
-      _stars = ScoreRules.starsFor(movesLeft: _movesLeft, moves: level.moves);
+      _stars = ScoreRules.starsFor(movesLeft: movesLeft, moves: level.moves);
       _status = GameStatus.won;
       LogService.info(
         '关卡 ${level.id} 通关: 分数 $score, 星级 $_stars, 剩余步数 $_movesLeft',
@@ -202,6 +327,7 @@ class MatchController extends ChangeNotifier {
   /// 提示：按当前目标挑选收益最高的交换，3.5 秒后自动消失。
   void requestHint() {
     if (!canInteract) return;
+    _activeProp = null;
     final picked = _advisor.pick(engine: _engine, goals: goalProgress);
     if (picked == null) {
       shuffleBoard();
@@ -222,13 +348,14 @@ class MatchController extends ChangeNotifier {
     if (!canInteract) return;
     _engine.shuffle();
     _selected = -1;
+    _activeProp = null;
     _hint = null;
     _boardRevision++;
     LogService.info('关卡 ${level.id} 手动重排棋盘');
     notifyListeners();
   }
 
-  /// 重开本关：分数、步数与冰层全部重置。
+  /// 重开本关：分数、步数与冰层全部重置，已消耗的道具不返还。
   void restart() {
     _hintTimer?.cancel();
     _engine.resetBoard();
@@ -237,6 +364,7 @@ class MatchController extends ChangeNotifier {
     _iceBroken = 0;
     _combo = 0;
     _selected = -1;
+    _activeProp = null;
     _hint = null;
     _stars = 0;
     _pending = const [];

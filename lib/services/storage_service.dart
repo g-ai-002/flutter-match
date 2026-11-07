@@ -1,6 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../game/daily_challenge.dart';
 import '../game/logic_rate.dart';
+import '../game/props.dart';
 import '../utils/constants.dart';
 
 /// 轻量本地存储：偏好设置与关卡进度，写入失败时静默忽略。
@@ -61,6 +63,54 @@ class StorageService {
 
   int bestScoreFor(int levelId) =>
       _p.getInt(AppConstants.bestScoreKey(levelId)) ?? 0;
+
+  /// 福币余额。
+  int get coins => _p.getInt(AppConstants.prefKeyCoins) ?? 0;
+
+  /// 增减福币，余额不会变成负数。
+  Future<void> addCoins(int delta) => _write((p) async {
+    final next = coins + delta;
+    await p.setInt(AppConstants.prefKeyCoins, next < 0 ? 0 : next);
+    return true;
+  });
+
+  /// 道具库存；从未写入过时返回首次赠送的数量。
+  int propCount(PropKind kind) =>
+      _p.getInt(kind.storageKey) ?? kind.initialStock;
+
+  Future<void> setPropCount(PropKind kind, int value) =>
+      _write((p) => p.setInt(kind.storageKey, value < 0 ? 0 : value));
+
+  int dailyStars(String dateKey) =>
+      _p.getInt(AppConstants.dailyStarsKey(dateKey)) ?? 0;
+
+  int dailyBestScore(String dateKey) =>
+      _p.getInt(AppConstants.dailyScoreKey(dateKey)) ?? 0;
+
+  bool dailyRewarded(String dateKey) =>
+      _p.getBool(AppConstants.dailyRewardKey(dateKey)) ?? false;
+
+  /// 记录每日挑战成绩；当天首次通关时补发福币并返回奖励数量。
+  Future<int> recordDailyResult({
+    required String dateKey,
+    required int stars,
+    required int score,
+  }) async {
+    if (stars > dailyStars(dateKey)) {
+      await _write((p) => p.setInt(AppConstants.dailyStarsKey(dateKey), stars));
+    }
+    if (score > dailyBestScore(dateKey)) {
+      await _write((p) => p.setInt(AppConstants.dailyScoreKey(dateKey), score));
+    }
+    if (stars <= 0 || dailyRewarded(dateKey)) return 0;
+    const reward = DailyChallenge.rewardCoins;
+    await _write((p) async {
+      await p.setBool(AppConstants.dailyRewardKey(dateKey), true);
+      await p.setInt(AppConstants.prefKeyCoins, coins + reward);
+      return true;
+    });
+    return reward;
+  }
 
   /// 已解锁的最大关卡（从 1 开始）。
   int get unlockedLevel => _p.getInt(AppConstants.prefKeyUnlocked) ?? 1;

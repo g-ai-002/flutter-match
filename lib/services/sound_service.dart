@@ -9,7 +9,17 @@ import 'synth_worker.dart';
 import 'tone_synth.dart';
 
 /// 反馈类型，决定提示音与震动的强弱。
-enum FeedbackKind { swap, invalid, clear, clearBig, special, ice, win, lose }
+enum FeedbackKind {
+  swap,
+  invalid,
+  clear,
+  clearBig,
+  special,
+  ice,
+  prop,
+  win,
+  lose,
+}
 
 /// 操作反馈音效与触感。
 ///
@@ -115,6 +125,24 @@ class SoundService {
         damp: 5,
       ),
     ],
+    FeedbackKind.prop: [
+      SynthNote(
+        frequency: 520,
+        start: 0,
+        duration: 0.09,
+        gain: 0.36,
+        noise: 0.35,
+        damp: 6,
+      ),
+      SynthNote(frequency: 1040, start: 0.06, duration: 0.14, gain: 0.32),
+      SynthNote(
+        frequency: 1560,
+        start: 0.1,
+        duration: 0.2,
+        gain: 0.24,
+        noise: 0.12,
+      ),
+    ],
     FeedbackKind.win: [
       SynthNote(frequency: 523.25, start: 0, duration: 0.14, gain: 0.4),
       SynthNote(frequency: 659.25, start: 0.12, duration: 0.14, gain: 0.4),
@@ -193,6 +221,7 @@ class SoundService {
       FeedbackKind.clearBig => HapticFeedback.mediumImpact,
       FeedbackKind.special => HapticFeedback.mediumImpact,
       FeedbackKind.ice => HapticFeedback.mediumImpact,
+      FeedbackKind.prop => HapticFeedback.mediumImpact,
       FeedbackKind.win => HapticFeedback.heavyImpact,
       FeedbackKind.lose => HapticFeedback.vibrate,
     };

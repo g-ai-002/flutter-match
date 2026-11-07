@@ -211,9 +211,12 @@ class MatchEngine {
     return RainbowBlast(seeds: seeds, targets: targets);
   }
 
-  /// 交换两枚相邻棋子；无效交换会带回退动画并标记 [SwapOutcome.valid] 为 false。
-  SwapOutcome trySwap(int a, int b) {
-    if (!board.isAdjacent(a, b)) {
+  /// 交换两枚棋子；无效交换会带回退动画并标记 [SwapOutcome.valid] 为 false。
+  ///
+  /// [anywhere] 为 true 时不要求相邻，供「换位」道具使用：任意两枚棋子
+  /// 交换后仍必须形成消除，否则原样退回。
+  SwapOutcome trySwap(int a, int b, {bool anywhere = false}) {
+    if (!anywhere && !board.isAdjacent(a, b)) {
       return const SwapOutcome(valid: false, steps: []);
     }
     final ta = board.tiles[a];
@@ -443,6 +446,14 @@ class MatchEngine {
       typeCounts: counts,
       createsSpecial: special,
     );
+  }
+
+  /// 小锤：敲掉任意一枚棋子（特殊棋子照常引爆），不消耗步数。
+  List<BoardStep> smash(int index) {
+    if (!board.contains(index) || board.tiles[index] == null) {
+      return const [];
+    }
+    return _resolve(seed: {index});
   }
 
   /// 洗牌：保留现有棋子与特殊棋子，直到既无直接匹配又有可走一步。
