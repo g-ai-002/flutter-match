@@ -40,4 +40,19 @@ void main() {
     expect(layout.left, 212);
     expect(layout.top, 12);
   });
+
+  test('格子矩形与中心点预计算并随尺寸重建', () {
+    final layout = BoardLayout(cols: 5, rows: 5)..fit(Vector2(500, 300));
+    final rect = layout.cellRect(7);
+    final center = layout.cellCenter(7);
+    // 热路径直接复用同一对象，不逐帧新建 Rect / Offset。
+    expect(identical(layout.cellRect(7), rect), isTrue);
+    expect(identical(layout.cellCenter(7), center), isTrue);
+
+    layout.fit(Vector2(500, 500));
+    expect(identical(layout.cellRect(7), rect), isFalse);
+    expect(layout.cellRect(7).left, layout.left + layout.cell * 2);
+    expect(layout.cellCenter(7).dx, layout.left + layout.cell * 2.5);
+    expect(layout.boardRect.width, layout.cell * 5);
+  });
 }

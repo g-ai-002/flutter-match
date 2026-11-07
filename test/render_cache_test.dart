@@ -105,6 +105,41 @@ void main() {
     });
   });
 
+  testWidgets('冰面坐标只在版本变化时重建，逐帧不再扫描整盘', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels[4], seed: 11);
+      final board = BoardComponent(
+        controller: controller,
+        darkMode: ValueNotifier(false),
+      );
+      await board.onLoad();
+      board.size = Vector2(560, 560);
+
+      _paint(board);
+      expect(board.painter.iceListBuilds, 1);
+
+      // 冰面静止期间每帧都画，但不重建坐标表。
+      for (var frame = 0; frame < 60; frame++) {
+        board.update(1 / 60);
+        _paint(board);
+      }
+      expect(board.painter.iceListBuilds, 1);
+
+      // 一次落子最多让冰层版本变一次，动画期间只重建一次。
+      controller.requestHint();
+      final hint = controller.hint!;
+      controller.swap(hint.a, hint.b);
+      for (var frame = 0; frame < 150; frame++) {
+        board.update(1 / 60);
+        _paint(board);
+      }
+      expect(board.painter.iceListBuilds, lessThanOrEqualTo(2));
+
+      board.onRemove();
+      controller.dispose();
+    });
+  });
+
   testWidgets('静态缓存帧与逐帧绘制像素一致，棋子没有被裁掉', (tester) async {
     await tester.runAsync(() async {
       final controller = MatchController(level: kLevels.first, seed: 21);
