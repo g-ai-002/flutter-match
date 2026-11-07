@@ -60,6 +60,7 @@ class BoardComponent extends PositionComponent
   bool _running = false;
 
   /// 是否有补间、消失或弹入的棋子在逐帧变化；逻辑步里顺带统计。
+  /// 粒子与提示脉冲属于覆盖层，不参与棋盘层缓存判定。
   bool _visualsAnimating = false;
 
   /// 控制器刚通知过，需要再画一帧（选中、提示、目标变化等）。
@@ -468,7 +469,7 @@ class BoardComponent extends PositionComponent
       spark.elapsed += span;
     }
     _sparks.removeWhere((spark) => spark.finished);
-    _visualsAnimating = animating || _sparks.isNotEmpty;
+    _visualsAnimating = animating;
 
     if (!_running) return;
     _phaseElapsed += span;
@@ -493,12 +494,8 @@ class BoardComponent extends PositionComponent
     _seenRevision = controller.boardRevision;
   }
 
-  /// 是否有补间、消失、弹入、粒子或提示脉冲需要逐帧重绘。
-  bool get _isAnimating =>
-      _running ||
-      _visualsAnimating ||
-      _sparks.isNotEmpty ||
-      controller.hint != null;
+  /// 棋子是否在逐帧变化；提示脉冲与粒子由绘制器叠加，不重建棋盘层缓存。
+  bool get _boardAnimating => _running || _visualsAnimating;
 
   @override
   void render(Canvas canvas) {
@@ -509,7 +506,7 @@ class BoardComponent extends PositionComponent
       visuals: _visuals,
       sparks: _sparks,
       time: _time,
-      animated: _isAnimating,
+      animated: _boardAnimating,
       revision: _frameRevision,
     );
   }

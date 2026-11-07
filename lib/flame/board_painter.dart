@@ -15,11 +15,12 @@ import 'tile_visual.dart';
 /// 棋盘绘制：面板底纹、棋子、冰层、选中与提示高亮、消除粒子。
 ///
 /// 只负责画，不持有动画状态；视觉列表与计时由 [BoardComponent] 维护。
-/// 静止画面（无补间、无粒子、无提示闪烁）整块缓存为 Picture，空闲帧只画一次；
+/// 棋盘层（面板、棋子、冰层、选中）与覆盖层（提示脉冲、消除粒子）分开：
+/// 棋盘静止时整层缓存为 Picture，提示闪烁与粒子扩散只重绘覆盖层；
 /// 底板与棋盘格同样单独缓存，避免每帧重建渐变与底纹。
 ///
 /// 热路径上的取舍：
-/// - 静止棋子只做一次 translate 就贴图，跳过缩放与图层；
+/// - 静止棋子批量平移贴图，整层只做一次 save/restore，不再逐枚切换画布状态；
 /// - 格子矩形、冰面坐标在排版或冰层变化时预计算，逐帧不再扫描整盘；
 /// - 贴图按定长数组下标取用，每帧只同步一次格子尺寸。
 class BoardPainter {
@@ -59,6 +60,10 @@ class BoardPainter {
   @visibleForTesting
   int staticFrameBuilds = 0;
 
+  /// 提示脉冲绘制帧数，供性能测试断言覆盖层仍在逐帧刷新。
+  @visibleForTesting
+  int hintFrames = 0;
+
   /// 冰面坐标表重建次数，供性能测试断言没有逐帧扫描。
   @visibleForTesting
   int iceListBuilds = 0;
@@ -75,40 +80,27 @@ class BoardPainter {
     int revision = 0,
   }) {
     final dark = darkMode.value;
-    if (!animated) {
+    if (animated) {
+      _paintBoard(canvas, visuals: visuals, dark: dark);
+    } else {
       final cached = _staticFrame;
-      if (cached != null &&
-          revision == _staticRevision &&
-          _cellKey == _staticCellKey &&
-          dark == _staticDark) {
-        canvas.drawPicture(cached);
-        return;
+      if (cached == null ||
+          revision != _staticRevision ||
+          _cellKey != _staticCellKey ||
+          dark != _staticDark) {
+        final recorder = PictureRecorder();
+        _paintBoard(Canvas(recorder), visuals: visuals, dark: dark);
+        final picture = recorder.endRecording();
+        _staticFrame?.dispose();
+        _staticFrame = picture;
+        _staticRevision = revision;
+        _staticCellKey = _cellKey;
+        _staticDark = dark;
+        staticFrameBuilds++;
       }
-      final recorder = PictureRecorder();
-      _paintScene(
-        Canvas(recorder),
-        visuals: visuals,
-        sparks: sparks,
-        time: time,
-        dark: dark,
-      );
-      final picture = recorder.endRecording();
-      _staticFrame?.dispose();
-      _staticFrame = picture;
-      _staticRevision = revision;
-      _staticCellKey = _cellKey;
-      _staticDark = dark;
-      staticFrameBuilds++;
-      canvas.drawPicture(picture);
-      return;
+      canvas.drawPicture(_staticFrame!);
     }
-    _paintScene(
-      canvas,
-      visuals: visuals,
-      sparks: sparks,
-      time: time,
-      dark: dark,
-    );
+    _paintOverlay(canvas, time: time, sparks: sparks);
   }
 
   void dispose() {
@@ -129,11 +121,10 @@ class BoardPainter {
     _staticRevision = -1;
   }
 
-  void _paintScene(
+  /// 棋盘层：内容随动画逐帧变化，静止时整层缓存。
+  void _paintBoard(
     Canvas canvas, {
     required List<TileVisual> visuals,
-    required List<Spark> sparks,
-    required double time,
     required bool dark,
   }) {
     sprites.beginFrame(layout.cell);
@@ -141,6 +132,14 @@ class BoardPainter {
     _paintTiles(canvas, visuals);
     _paintIce(canvas);
     _paintSelection(canvas);
+  }
+
+  /// 覆盖层：提示脉冲与消除粒子，不影响棋盘层的缓存。
+  void _paintOverlay(
+    Canvas canvas, {
+    required double time,
+    required List<Spark> sparks,
+  }) {
     _paintHint(canvas, time);
     _paintSparks(canvas, sparks);
   }
@@ -218,6 +217,10 @@ class BoardPainter {
   }
 
   /// 棋子按行、列顺序绘制，列表复用 + 近有序插入排序，避免每帧拷贝与全量排序。
+  ///
+  /// 静止棋子走批量平移：整层只 save 一次，按相邻棋子的位移平移画布，
+  /// 81 枚棋子少做一百多次 save/restore；只有缩放、淡出或选中的棋子
+  /// 才回到原点走独立图层。
   void _paintTiles(Canvas canvas, List<TileVisual> visuals) {
     final order = _order
       ..clear()
@@ -231,9 +234,42 @@ class BoardPainter {
       }
       order[j + 1] = item;
     }
+    final cell = layout.cell;
+    final left = layout.left;
+    final top = layout.top;
+    final selectedCell = controller.selected;
+    canvas.save();
+    var originX = 0.0;
+    var originY = 0.0;
     for (final visual in order) {
-      _paintTile(canvas, visual);
+      final selected = selectedCell == visual.cell;
+      final scale = visual.scale * (selected ? 1.08 : 1.0);
+      final opacity = visual.opacity;
+      if (!selected && scale == 1 && opacity >= 0.999) {
+        final x = left + visual.col * cell;
+        final y = top + visual.row * cell;
+        if (x != originX || y != originY) {
+          canvas.translate(x - originX, y - originY);
+          originX = x;
+          originY = y;
+        }
+        canvas.drawPicture(sprites.tile(visual.type, visual.special, cell));
+        continue;
+      }
+      if (originX != 0 || originY != 0) {
+        canvas.translate(-originX, -originY);
+        originX = 0;
+        originY = 0;
+      }
+      _paintStyledTile(
+        canvas,
+        visual,
+        selected: selected,
+        scale: scale,
+        opacity: opacity,
+      );
     }
+    canvas.restore();
     order.clear();
   }
 
@@ -242,26 +278,16 @@ class BoardPainter {
     return a.col > b.col;
   }
 
-  void _paintTile(Canvas canvas, TileVisual visual) {
+  /// 缩放、淡出或选中的棋子：绕格子中心变换，按需叠加选中高亮与透明图层。
+  void _paintStyledTile(
+    Canvas canvas,
+    TileVisual visual, {
+    required bool selected,
+    required double scale,
+    required double opacity,
+  }) {
     final cell = layout.cell;
     final sprite = sprites.tile(visual.type, visual.special, cell);
-    final selected = controller.selected == visual.cell;
-    final scale = visual.scale * (selected ? 1.08 : 1.0);
-    final opacity = visual.opacity;
-
-    // 最常见的情况：静止、未选中、不透明，只需一次平移就能贴图。
-    if (!selected && scale == 1 && opacity >= 0.999) {
-      canvas
-        ..save()
-        ..translate(
-          layout.left + visual.col * cell,
-          layout.top + visual.row * cell,
-        )
-        ..drawPicture(sprite)
-        ..restore();
-      return;
-    }
-
     final centerX = layout.left + (visual.col + 0.5) * cell;
     final centerY = layout.top + (visual.row + 0.5) * cell;
     canvas
@@ -321,15 +347,22 @@ class BoardPainter {
     final left = layout.left;
     final top = layout.top;
     final cols = layout.cols;
+    canvas.save();
+    var originX = 0.0;
+    var originY = 0.0;
     for (final packed in _iceCells) {
       final index = packed >> 2;
       final layers = packed & 3;
-      canvas
-        ..save()
-        ..translate(left + (index % cols) * cell, top + (index ~/ cols) * cell)
-        ..drawPicture(sprites.ice(layers, cell))
-        ..restore();
+      final x = left + (index % cols) * cell;
+      final y = top + (index ~/ cols) * cell;
+      if (x != originX || y != originY) {
+        canvas.translate(x - originX, y - originY);
+        originX = x;
+        originY = y;
+      }
+      canvas.drawPicture(sprites.ice(layers, cell));
     }
+    canvas.restore();
   }
 
   void _paintSelection(Canvas canvas) {
@@ -347,6 +380,7 @@ class BoardPainter {
   void _paintHint(Canvas canvas, double time) {
     final hint = controller.hint;
     if (hint == null) return;
+    hintFrames++;
     final pulse = 0.5 + 0.5 * math.sin(time * 7);
     final color = Color.lerp(appRedDeep, appGoldBright, pulse)!;
     final width = layout.cell * (0.035 + 0.02 * pulse);

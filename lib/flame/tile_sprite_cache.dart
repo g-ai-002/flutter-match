@@ -19,6 +19,7 @@ class TileSpriteCache {
   final List<Picture?> _tiles = List<Picture?>.filled(_tileSlots, null);
   final List<Picture?> _ice = List<Picture?>.filled(_iceSlots, null);
   int _cellKey = 0;
+  double _lastCell = 0;
 
   int _warmKey = -1;
   int _warmCursor = 0;
@@ -91,7 +92,11 @@ class TileSpriteCache {
   }
 
   /// 格子尺寸变化超过 1/4 像素时重建全部贴图与文字排版。
+  ///
+  /// 逐枚取图都会走到这里，先做一次 double 比较，尺寸没变时不再换算量化键。
   void _syncCell(double cell) {
+    if (cell == _lastCell) return;
+    _lastCell = cell;
     final key = (cell * 4).round();
     if (key == _cellKey) return;
     _disposePictures();
@@ -120,5 +125,6 @@ class TileSpriteCache {
   void dispose() {
     invalidate();
     _cellKey = 0;
+    _lastCell = 0;
   }
 }

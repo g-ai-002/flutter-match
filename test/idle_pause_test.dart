@@ -57,15 +57,19 @@ void main() {
       expect(board.needsFrames, isFalse);
       expect(activity.last, isFalse);
 
-      // 提示需要逐帧脉冲，期间不复用静止画面。
+      // 提示需要逐帧脉冲，但只重绘覆盖层：棋盘层第一次画完后继续复用缓存。
       controller.requestHint();
       expect(board.needsFrames, isTrue);
+      board.update(1 / 60);
+      _paint(board);
       final builds = board.painter.staticFrameBuilds;
+      final hintFrames = board.painter.hintFrames;
       board.update(1 / 60);
       _paint(board);
       board.update(1 / 60);
       _paint(board);
       expect(board.painter.staticFrameBuilds, builds);
+      expect(board.painter.hintFrames, hintFrames + 2);
 
       // 重开清掉提示后重新回到空闲。
       controller.restart();

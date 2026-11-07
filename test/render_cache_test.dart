@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/flame/board_component.dart';
+import 'package:fortune_match/flame/spark.dart';
 import 'package:fortune_match/game/levels.dart';
 import 'package:fortune_match/game/match_controller.dart';
 import 'package:fortune_match/services/sound_service.dart';
@@ -137,6 +138,76 @@ void main() {
 
       board.onRemove();
       controller.dispose();
+    });
+  });
+
+  testWidgets('提示脉冲只重绘覆盖层，棋盘静态层保持缓存', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 13);
+      final dark = ValueNotifier(false);
+      final board = BoardComponent(controller: controller, darkMode: dark);
+      await board.onLoad();
+      board.size = Vector2(520, 520);
+
+      _paint(board);
+      controller.requestHint();
+      expect(controller.hint, isNotNull);
+      _paint(board);
+      final builds = board.painter.staticFrameBuilds;
+      final hintFrames = board.painter.hintFrames;
+
+      // 提示闪烁 1 秒：覆盖层逐帧刷新，棋盘层一张 Picture 用到底。
+      for (var frame = 0; frame < 60; frame++) {
+        board.update(1 / 60);
+        _paint(board);
+      }
+      expect(board.painter.staticFrameBuilds, builds);
+      expect(board.painter.hintFrames, greaterThan(hintFrames + 30));
+
+      board.onRemove();
+      controller.dispose();
+      dark.dispose();
+    });
+  });
+
+  testWidgets('粒子动画期间复用棋盘静态层，只叠加覆盖层', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 17);
+      final dark = ValueNotifier(false);
+      final board = BoardComponent(controller: controller, darkMode: dark);
+      await board.onLoad();
+      board.size = Vector2(480, 480);
+
+      final spark = Spark(
+        center: board.painter.layout.cellCenter(0),
+        color: const ui.Color(0xFFFFE7A8),
+        seed: 0.25,
+      );
+
+      void paintFrame(double time) {
+        final recorder = ui.PictureRecorder();
+        board.painter.paint(
+          ui.Canvas(recorder),
+          visuals: board.visuals,
+          sparks: [spark],
+          time: time,
+          animated: false,
+          revision: 5,
+        );
+        recorder.endRecording().dispose();
+      }
+
+      paintFrame(0);
+      final builds = board.painter.staticFrameBuilds;
+      for (var frame = 1; frame <= 20; frame++) {
+        spark.elapsed = frame / 60;
+        paintFrame(frame / 60);
+      }
+      expect(board.painter.staticFrameBuilds, builds);
+
+      board.onRemove();
+      controller.dispose();
+      dark.dispose();
     });
   });
 
