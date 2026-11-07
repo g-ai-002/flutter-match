@@ -11,6 +11,16 @@ const Color appGold = Color(0xFFD9985C);
 const Color appJade = Color(0xFF3F6B5B);
 const Color appInk = Color(0xFF2B2620);
 
+/// 首页、关卡页与对局页共用的暖色渐变底色。
+const List<Color> kSceneColorsLight = [Color(0xFFFDF7EA), Color(0xFFF0DFC0)];
+const List<Color> kSceneColorsDark = [Color(0xFF241C15), Color(0xFF120F0A)];
+
+LinearGradient sceneGradient(bool dark) => LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: dark ? kSceneColorsDark : kSceneColorsLight,
+);
+
 ThemeData buildLightTheme({String? fontFamily}) {
   const scheme = ColorScheme.light(
     primary: Color(0xFFA63A2B),

@@ -31,13 +31,13 @@
 
 ## 下载
 
-v0.1.1（最新发布）：[Gitea Release](http://192.168.31.120:3020/GTech/flutter-match/releases/tag/v0.1.1)
+v0.1.2（最新发布）：[Gitea Release](http://192.168.31.120:3020/GTech/flutter-match/releases/tag/v0.1.2)
 
 | 平台 | 产物 |
 | --- | --- |
-| Android (arm64) | `flutter-match-0.1.1-android-aarch64.apk` |
-| Windows (x64, Win10+) | `flutter-match-0.1.1-windows-x86_64.zip` |
-| Web | `flutter-match-0.1.1-web.zip`（解压后起静态服务器） |
+| Android (arm64) | `flutter-match-0.1.2-android-aarch64.apk` |
+| Windows (x64, Win10+) | `flutter-match-0.1.2-windows-x86_64.zip` |
+| Web | `flutter-match-0.1.2-web.zip`（解压后起静态服务器） |
 
 Web 试玩站点由 `build` 工作流推送到 `tea-pages` 分支，按版本目录访问。
 
@@ -61,8 +61,8 @@ flutter test
 
 ```
 lib/
-├── game/       三消引擎、动画步骤、关卡控制器、关卡配置与逻辑速率
-├── flame/      Flame 棋盘组件与游戏入口
+├── game/       三消引擎、棋盘与连线扫描、动画步骤、计分与提示、关卡配置与控制器
+├── flame/      Flame 棋盘组件、排版、棋子视觉、贴图缓存与绘制
 ├── pages/      首页、关卡选择、对局页、设置页及通用组件
 ├── services/   日志、偏好与进度存储、运行时音效与音乐合成
 ├── providers/  用户偏好状态
@@ -75,5 +75,6 @@ lib/
 
 | 版本 | 说明 |
 | --- | --- |
+| v0.1.2 | 重构拆分引擎、渲染与页面职责，计分/提示规则独立，测试增至 57 条 |
 | v0.1.1 | 修复窄屏首页溢出，入口在手机宽度下改为上下堆叠 |
 | v0.1.0 | 首个版本：三消核心、特殊棋子、20 关闯关、冰层、三星评级、合成音效与三端发布 |
