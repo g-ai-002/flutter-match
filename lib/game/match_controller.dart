@@ -9,38 +9,27 @@ import '../services/log_service.dart';
 import '../services/sound_service.dart';
 import 'board_step.dart';
 import 'engine.dart';
+import 'game_status.dart';
+import 'goal_progress.dart';
+import 'hint_advisor.dart';
+import 'scoring.dart';
 
-/// 对局状态：可操作、动画中、胜利、失败。
-enum GameStatus { ready, animating, won, lost }
-
-/// 单条目标的实时进度。
-class GoalProgress {
-  const GoalProgress({required this.goal, required this.current});
-
-  final LevelGoal goal;
-  final int current;
-
-  int get target => goal.target;
-
-  bool get done => current >= target;
-
-  double get ratio =>
-      target <= 0 ? 1 : (current / target).clamp(0.0, 1.0).toDouble();
-
-  String get display => '$current/$target';
-}
+export 'game_status.dart';
+export 'goal_progress.dart';
 
 /// 关卡控制器：衔接三消引擎、计分目标与 Flame 动画队列。
 ///
 /// 引擎在交换时一次性算出整段连锁的动画脚本，Flame 组件逐条播放，
 /// 每播完一条由组件回调 [onStepShown]，分数与目标进度随之推进。
 class MatchController extends ChangeNotifier {
-  MatchController({required this.level, int? seed})
+  MatchController({required this.level, int? seed, HintAdvisor? hintAdvisor})
     : _engine = MatchEngine(level: level, seed: seed),
+      _advisor = hintAdvisor ?? HintAdvisor(random: math.Random(seed)),
       _movesLeft = level.moves;
 
   final Level level;
   final MatchEngine _engine;
+  final HintAdvisor _advisor;
 
   int _movesLeft;
   int _score = 0;
@@ -154,16 +143,14 @@ class MatchController extends ChangeNotifier {
   void onStepShown(BoardStep step) {
     if (step is! ClearStep) return;
     _combo = step.combo;
-    final multiplier = step.combo.clamp(1, 6);
-    var gained = step.tiles.length * 50 * multiplier;
-    gained += step.specials.length * 150;
-    for (final change in step.iceChanges) {
-      if (change.broken) {
-        _iceBroken++;
-        gained += 100;
-      }
-    }
-    _score += gained;
+    final broken = step.iceChanges.where((change) => change.broken).length;
+    _score += ScoreRules.forClear(
+      tiles: step.tiles.length,
+      specials: step.specials.length,
+      iceBroken: broken,
+      combo: step.combo,
+    );
+    _iceBroken += broken;
     for (final tile in step.tiles) {
       _collected[tile.type] = (_collected[tile.type] ?? 0) + 1;
     }
@@ -177,12 +164,7 @@ class MatchController extends ChangeNotifier {
     _pending = const [];
     _autoShuffled = false;
     if (_allGoalsDone) {
-      final remaining = level.moves <= 0 ? 0.0 : _movesLeft / level.moves;
-      _stars = remaining >= 0.34
-          ? 3
-          : remaining >= 0.12
-          ? 2
-          : 1;
+      _stars = ScoreRules.starsFor(movesLeft: _movesLeft, moves: level.moves);
       _status = GameStatus.won;
       LogService.info(
         '关卡 ${level.id} 通关: 分数 $score, 星级 $_stars, 剩余步数 $_movesLeft',
@@ -220,17 +202,12 @@ class MatchController extends ChangeNotifier {
   /// 提示：按当前目标挑选收益最高的交换，3.5 秒后自动消失。
   void requestHint() {
     if (!canInteract) return;
-    final hints = _engine.findHints();
-    if (hints.isEmpty) {
+    final picked = _advisor.pick(engine: _engine, goals: goalProgress);
+    if (picked == null) {
       shuffleBoard();
       return;
     }
-    final evaluations = [
-      for (final hint in hints) _engine.evaluateHint(hint),
-    ]..sort((a, b) => _hintScore(b).compareTo(_hintScore(a)));
-    // 在得分最高的几组里随机取一个，避免连续提示总指向同一处。
-    final top = evaluations.take(3).toList();
-    _hint = top[math.Random().nextInt(top.length)].hint;
+    _hint = picked;
     _selected = -1;
     _hintTimer?.cancel();
     _hintTimer = Timer(const Duration(milliseconds: 3500), () {
@@ -238,25 +215,6 @@ class MatchController extends ChangeNotifier {
       notifyListeners();
     });
     notifyListeners();
-  }
-
-  /// 目标导向的提示权重：冰面与未完成的收集目标优先，其次多消与特殊棋子。
-  double _hintScore(HintEvaluation evaluation) {
-    var score = evaluation.tileCount.toDouble();
-    if (evaluation.createsSpecial) score += 1.5;
-    for (final progress in goalProgress) {
-      if (progress.done) continue;
-      switch (progress.goal.kind) {
-        case GoalKind.ice:
-          score += evaluation.iceCount * 25;
-        case GoalKind.collect:
-          score +=
-              (evaluation.typeCounts[progress.goal.type] ?? 0) * 6;
-        case GoalKind.score:
-          score += evaluation.tileCount * 0.4;
-      }
-    }
-    return score;
   }
 
   /// 手动重排：不消耗步数，洗牌后清空选中与提示。

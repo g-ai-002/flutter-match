@@ -3,40 +3,12 @@ import 'dart:math';
 
 import '../models/level.dart';
 import '../models/tile.dart';
+import 'board.dart';
 import 'board_step.dart';
+import 'match_finder.dart';
 
-/// 棋盘数据：棋子与冰层，下标为 `row * cols + col`。
-class GameBoard {
-  GameBoard({required this.cols, required this.rows})
-    : tiles = List<Tile?>.filled(cols * rows, null),
-      ice = List<int>.filled(cols * rows, 0);
-
-  final int cols;
-  final int rows;
-  final List<Tile?> tiles;
-  final List<int> ice;
-
-  int get length => tiles.length;
-
-  int indexOf(int col, int row) => row * cols + col;
-
-  bool contains(int index) => index >= 0 && index < tiles.length;
-
-  Tile? tileAt(int index) => contains(index) ? tiles[index] : null;
-
-  void swap(int a, int b) {
-    final tile = tiles[a];
-    tiles[a] = tiles[b];
-    tiles[b] = tile;
-  }
-
-  bool isAdjacent(int a, int b) {
-    if (!contains(a) || !contains(b) || a == b) return false;
-    final ca = a % cols, ra = a ~/ cols;
-    final cb = b % cols, rb = b ~/ cols;
-    return (ca - cb).abs() + (ra - rb).abs() == 1;
-  }
-}
+export 'board.dart';
+export 'match_finder.dart';
 
 /// 一次交换的结果：动画步骤与是否有效。
 class SwapOutcome {
@@ -71,55 +43,12 @@ class HintEvaluation {
   final bool createsSpecial;
 }
 
-class _RawRun {
-  _RawRun(this.cells, this.horizontal);
+/// 福珠引爆的目标：待清除的种子格与福珠对应的目标类型。
+class RainbowBlast {
+  const RainbowBlast({required this.seeds, required this.targets});
 
-  final List<int> cells;
-  final bool horizontal;
-}
-
-class _MatchGroup {
-  _MatchGroup({
-    required this.type,
-    required this.hRuns,
-    required this.vRuns,
-  });
-
-  final TileType type;
-  final List<List<int>> hRuns;
-  final List<List<int>> vRuns;
-
-  late final Set<int> cells = {
-    ...hRuns.expand((run) => run),
-    ...vRuns.expand((run) => run),
-  };
-
-  List<List<int>> get runs => [...hRuns, ...vRuns];
-
-  SpecialType get special {
-    final longest = runs.fold<int>(0, (m, run) => max(m, run.length));
-    if (longest >= 5) return SpecialType.rainbow;
-    if (hRuns.isNotEmpty && vRuns.isNotEmpty) return SpecialType.bomb;
-    if (longest == 4) {
-      return hRuns.isNotEmpty ? SpecialType.row : SpecialType.column;
-    }
-    return SpecialType.none;
-  }
-
-  /// 特殊棋子落点：优先玩家落子处，其次拐点，最后最长连线的中点。
-  int spawnIndex(int? preferred) {
-    if (preferred != null && cells.contains(preferred)) return preferred;
-    if (special == SpecialType.bomb) {
-      final hCells = hRuns.expand((run) => run).toSet();
-      final vCells = vRuns.expand((run) => run).toSet();
-      final crossing = hCells.intersection(vCells);
-      if (crossing.isNotEmpty) return crossing.first;
-    }
-    final longest = runs.reduce(
-      (a, b) => a.length >= b.length ? a : b,
-    );
-    return longest[longest.length ~/ 2];
-  }
+  final Set<int> seeds;
+  final Map<int, TileType> targets;
 }
 
 /// 三消核心：棋盘生成、消除判定、特殊棋子、下落补充、提示与重排。
@@ -141,6 +70,12 @@ class MatchEngine {
   final int rows;
   final int palette;
   final GameBoard board;
+
+  late final MatchFinder _finder = MatchFinder(
+    board: board,
+    cols: cols,
+    rows: rows,
+  );
 
   int _nextId = 1;
 
@@ -166,7 +101,7 @@ class MatchEngine {
         }
         board.tiles[index] = Tile(id: _nextId++, type: type);
       }
-      if (_findGroups().isEmpty && findHint() != null) return;
+      if (!_finder.hasMatch && findHint() != null) return;
       for (var index = 0; index < board.length; index++) {
         board.tiles[index] = null;
       }
@@ -190,112 +125,6 @@ class MatchEngine {
       if (up1?.type == type && up2?.type == type) return true;
     }
     return false;
-  }
-
-  /// 可参与同色匹配的棋子类型；空位与福珠会打断连线。
-  TileType? _matchType(int index) {
-    final tile = board.tiles[index];
-    if (tile == null || tile.special == SpecialType.rainbow) return null;
-    return tile.type;
-  }
-
-  List<_RawRun> _findRuns() {
-    final runs = <_RawRun>[];
-    for (var row = 0; row < rows; row++) {
-      var col = 0;
-      while (col < cols) {
-        final type = _matchType(row * cols + col);
-        if (type == null) {
-          col++;
-          continue;
-        }
-        var end = col + 1;
-        while (end < cols && _matchType(row * cols + end) == type) {
-          end++;
-        }
-        if (end - col >= 3) {
-          runs.add(
-            _RawRun([for (var c = col; c < end; c++) row * cols + c], true),
-          );
-        }
-        col = end;
-      }
-    }
-    for (var col = 0; col < cols; col++) {
-      var row = 0;
-      while (row < rows) {
-        final type = _matchType(row * cols + col);
-        if (type == null) {
-          row++;
-          continue;
-        }
-        var end = row + 1;
-        while (end < rows && _matchType(end * cols + col) == type) {
-          end++;
-        }
-        if (end - row >= 3) {
-          runs.add(
-            _RawRun([for (var r = row; r < end; r++) r * cols + col], false),
-          );
-        }
-        row = end;
-      }
-    }
-    return runs;
-  }
-
-  /// 找出所有匹配组（相交的横竖连线合并为同一组）。
-  List<_MatchGroup> _findGroups() {
-    final runs = _findRuns();
-    if (runs.isEmpty) return const [];
-    final parent = List<int>.generate(runs.length, (index) => index);
-
-    int find(int index) {
-      var root = index;
-      while (parent[root] != root) {
-        parent[root] = parent[parent[root]];
-        root = parent[root];
-      }
-      return root;
-    }
-
-    void union(int a, int b) {
-      final ra = find(a);
-      final rb = find(b);
-      if (ra != rb) parent[rb] = ra;
-    }
-
-    for (var i = 0; i < runs.length; i++) {
-      final set = runs[i].cells.toSet();
-      for (var j = i + 1; j < runs.length; j++) {
-        if (runs[j].cells.any(set.contains)) union(i, j);
-      }
-    }
-
-    final grouped = <int, List<_RawRun>>{};
-    for (var i = 0; i < runs.length; i++) {
-      grouped.putIfAbsent(find(i), () => []).add(runs[i]);
-    }
-
-    final groups = <_MatchGroup>[];
-    for (final groupRuns in grouped.values) {
-      final anchor = groupRuns.first.cells.first;
-      final type = board.tiles[anchor]!.type;
-      groups.add(
-        _MatchGroup(
-          type: type,
-          hRuns: [
-            for (final run in groupRuns)
-              if (run.horizontal) run.cells,
-          ],
-          vRuns: [
-            for (final run in groupRuns)
-              if (!run.horizontal) run.cells,
-          ],
-        ),
-      );
-    }
-    return groups;
   }
 
   /// 展开特殊棋子的爆炸范围，[reserved] 里的落点不会触发。
@@ -363,6 +192,25 @@ class MatchEngine {
     return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
   }
 
+  /// 福珠与另一枚棋子交换后的爆炸范围；两颗福珠相撞时清理整盘。
+  RainbowBlast _rainbowBlast(int rainbowIndex, int otherIndex) {
+    final seeds = <int>{rainbowIndex, otherIndex};
+    final targets = <int, TileType>{};
+    final other = board.tiles[otherIndex];
+    if (other == null) return RainbowBlast(seeds: seeds, targets: targets);
+    if (other.special == SpecialType.rainbow) {
+      for (var i = 0; i < board.length; i++) {
+        if (board.tiles[i] != null) seeds.add(i);
+      }
+      return RainbowBlast(seeds: seeds, targets: targets);
+    }
+    targets[rainbowIndex] = other.type;
+    for (var i = 0; i < board.length; i++) {
+      if (board.tiles[i]?.type == other.type) seeds.add(i);
+    }
+    return RainbowBlast(seeds: seeds, targets: targets);
+  }
+
   /// 交换两枚相邻棋子；无效交换会带回退动画并标记 [SwapOutcome.valid] 为 false。
   SwapOutcome trySwap(int a, int b) {
     if (!board.isAdjacent(a, b)) {
@@ -380,22 +228,13 @@ class MatchEngine {
     // 福珠与任意棋子交换：消除该棋子的全部同类。
     if (ta.special == SpecialType.rainbow || tb.special == SpecialType.rainbow) {
       final rainbowIndex = ta.special == SpecialType.rainbow ? b : a;
-      final otherIndex = rainbowIndex == a ? b : a;
-      final other = board.tiles[otherIndex];
-      final seeds = <int>{rainbowIndex, otherIndex};
-      final targets = <int, TileType>{};
-      if (other != null && other.special == SpecialType.rainbow) {
-        for (var i = 0; i < board.length; i++) {
-          if (board.tiles[i] != null) seeds.add(i);
-        }
-      } else if (other != null) {
-        targets[rainbowIndex] = other.type;
-        for (var i = 0; i < board.length; i++) {
-          final tile = board.tiles[i];
-          if (tile != null && tile.type == other.type) seeds.add(i);
-        }
-      }
-      steps.addAll(_resolve(seed: seeds, seedTargets: targets));
+      final blast = _rainbowBlast(
+        rainbowIndex,
+        rainbowIndex == a ? b : a,
+      );
+      steps.addAll(
+        _resolve(seed: blast.seeds, seedTargets: blast.targets),
+      );
       return SwapOutcome(valid: true, steps: steps);
     }
 
@@ -405,8 +244,7 @@ class MatchEngine {
       return SwapOutcome(valid: true, steps: steps);
     }
 
-    final groups = _findGroups();
-    if (groups.isEmpty) {
+    if (!_finder.hasMatch) {
       board.swap(a, b);
       steps.add(SwapStep(a: a, b: b));
       return SwapOutcome(valid: false, steps: steps);
@@ -437,7 +275,7 @@ class MatchEngine {
         targets = seedTargets;
         pendingSeed = null;
       } else {
-        final groups = _findGroups();
+        final groups = _finder.findGroups();
         if (groups.isEmpty) break;
         seeds = <int>{};
         for (final group in groups) {
@@ -449,11 +287,7 @@ class MatchEngine {
           created.add(
             PlacedSpecial(
               index: spawn,
-              tile: Tile(
-                id: _nextId++,
-                type: group.type,
-                special: special,
-              ),
+              tile: Tile(id: _nextId++, type: group.type, special: special),
             ),
           );
         }
@@ -524,9 +358,7 @@ class MatchEngine {
         final index = row * cols + col;
         final tile = Tile(id: _nextId++, type: _randomType());
         board.tiles[index] = tile;
-        spawns.add(
-          TileSpawn(tile: tile, to: index, fromRow: row - missing),
-        );
+        spawns.add(TileSpawn(tile: tile, to: index, fromRow: row - missing));
       }
     }
     return FallStep(moves: moves, spawns: spawns);
@@ -558,7 +390,7 @@ class MatchEngine {
             hints.add(SwapHint(a, b));
           } else {
             board.swap(a, b);
-            final matched = _findGroups().isNotEmpty;
+            final matched = _finder.hasMatch;
             board.swap(a, b);
             if (matched) hints.add(SwapHint(a, b));
           }
@@ -583,21 +415,14 @@ class MatchEngine {
     var special = false;
     if (rainbowInvolved) {
       final rainbowAt = ta.special == SpecialType.rainbow ? hint.b : hint.a;
-      final other = board.tiles[rainbowAt];
-      cells.add(rainbowAt);
-      if (other != null && other.special == SpecialType.rainbow) {
-        for (var i = 0; i < board.length; i++) {
-          if (board.tiles[i] != null) cells.add(i);
-        }
-      } else if (other != null) {
-        for (var i = 0; i < board.length; i++) {
-          final tile = board.tiles[i];
-          if (tile != null && tile.type == other.type) cells.add(i);
-        }
-      }
+      final blast = _rainbowBlast(
+        rainbowAt,
+        rainbowAt == hint.a ? hint.b : hint.a,
+      );
+      cells.addAll(blast.seeds);
       special = true;
     } else {
-      final groups = _findGroups();
+      final groups = _finder.findGroups();
       for (final group in groups) {
         cells.addAll(group.cells);
         if (group.special != SpecialType.none) special = true;
@@ -630,7 +455,7 @@ class MatchEngine {
       for (var index = 0; index < board.length; index++) {
         board.tiles[index] = tiles[index];
       }
-      if (_findGroups().isEmpty && findHint() != null) return true;
+      if (!_finder.hasMatch && findHint() != null) return true;
     }
     for (var index = 0; index < board.length; index++) {
       board.tiles[index] = null;
@@ -646,5 +471,5 @@ class MatchEngine {
   }
 
   /// 是否存在立即可以消除的连线（用于测试与初始化自检）。
-  bool get hasImmediateMatch => _findGroups().isNotEmpty;
+  bool get hasImmediateMatch => _finder.hasMatch;
 }

@@ -122,4 +122,36 @@ void main() {
     expect(controller.boardRevision, revision + 1);
     expect(after, before);
   });
+
+  test('目标进度随消除推进并换算为完成比例', () {
+    final controller = MatchController(level: _level(), seed: 81);
+    final progress = controller.goalProgress.single;
+    expect(progress.current, 0);
+    expect(progress.done, isFalse);
+    expect(progress.ratio, 0);
+    expect(progress.display, '0/999999');
+
+    controller.requestHint();
+    final hint = controller.hint!;
+    controller.swap(hint.a, hint.b);
+    controller.settleImmediately();
+    expect(controller.goalProgress.single.current, controller.score);
+    expect(controller.goalProgress.single.ratio, inInclusiveRange(0, 1));
+  });
+
+  test('动画播放期间忽略点选与交换，避免打断动画队列', () {
+    final controller = MatchController(level: _level(), seed: 91);
+    controller.requestHint();
+    final hint = controller.hint!;
+    controller.swap(hint.a, hint.b);
+    expect(controller.status, GameStatus.animating);
+    final moves = controller.movesLeft;
+    final epoch = controller.stepEpoch;
+
+    controller.tapCell(hint.a);
+    controller.swipe(hint.a, hint.b);
+    expect(controller.selected, -1);
+    expect(controller.movesLeft, moves);
+    expect(controller.stepEpoch, epoch);
+  });
 }

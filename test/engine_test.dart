@@ -163,4 +163,67 @@ void main() {
     expect(engine.findHint(), isNotNull);
     expect(engine.board.tiles.whereType<Tile>().length, 64);
   });
+
+  test('福珠交换清除全部同类棋子', () {
+    final engine = _engineFrom([
+      'A B A C D',
+      'C D C B E',
+      'D E D A C',
+      'B C B D A',
+      'E A E C B',
+    ]);
+    final targets = <int>{
+      for (var i = 0; i < engine.board.length; i++)
+        if (engine.board.tiles[i]?.type == TileType.ingot) i,
+    };
+    expect(targets, hasLength(5));
+    engine.board.tiles[0] = engine.board.tiles[0]!.withSpecial(
+      SpecialType.rainbow,
+    );
+
+    final outcome = engine.trySwap(0, 1);
+    expect(outcome.valid, isTrue);
+    final clear = _firstClear(outcome);
+    // 5 枚元宝 + 福珠本身，交换后的福珠落在下标 1。
+    expect(clear.tiles, hasLength(6));
+    expect(clear.cells.toSet(), containsAll(targets));
+    expect(clear.cells, contains(1));
+  });
+
+  test('提示评估不改动棋盘，也不超出可消除数量', () {
+    final engine = MatchEngine(level: _level(8, 8), seed: 17);
+    final before = [for (final tile in engine.board.tiles) tile?.id];
+    final hint = engine.findHint()!;
+    final evaluation = engine.evaluateHint(hint);
+    expect(evaluation.tileCount, greaterThanOrEqualTo(3));
+    expect(evaluation.hint.a, hint.a);
+    expect(evaluation.hint.b, hint.b);
+    expect([for (final tile in engine.board.tiles) tile?.id], before);
+  });
+
+  test('福珠提示评估只统计同色棋子而非整盘', () {
+    final engine = _engineFrom([
+      'A B A C D',
+      'C D C B E',
+      'D E D A C',
+      'B C B D A',
+      'E A E C B',
+    ]);
+    engine.board.tiles[0] = engine.board.tiles[0]!.withSpecial(
+      SpecialType.rainbow,
+    );
+    final evaluation = engine.evaluateHint(const SwapHint(0, 1));
+    // 5 枚元宝 + 福珠与相邻棋子，远少于整盘 25 格。
+    expect(evaluation.tileCount, 6);
+    expect(evaluation.tileCount, lessThan(engine.board.length));
+    expect(evaluation.createsSpecial, isTrue);
+    expect(evaluation.typeCounts[TileType.ingot], 5);
+  });
+
+  test('找提示可限制返回数量', () {
+    final engine = MatchEngine(level: _level(8, 8), seed: 23);
+    expect(engine.findHints(limit: 1), hasLength(1));
+    expect(engine.findHints(limit: 2).length, lessThanOrEqualTo(2));
+    expect(engine.findHints(), isNotEmpty);
+  });
 }
