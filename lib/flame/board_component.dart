@@ -1,3 +1,4 @@
+import 'dart:async' as async;
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
@@ -13,6 +14,7 @@ import '../theme/tile_art.dart';
 import 'board_layout.dart';
 import 'board_painter.dart';
 import 'board_timings.dart';
+import 'easing.dart';
 import 'spark.dart';
 import 'tile_sprite_cache.dart';
 import 'tile_visual.dart';
@@ -32,6 +34,9 @@ class BoardComponent extends PositionComponent
   final MatchController controller;
   final ValueListenable<bool> darkMode;
   final FixedStepClock _clock;
+
+  /// 棋盘是否还需要继续逐帧推进；由 [MatchGame] 据此暂停或恢复引擎循环。
+  void Function(bool active)? onActivityChanged;
 
   final List<TileVisual> _visuals = [];
   final List<Spark> _sparks = [];
@@ -54,6 +59,13 @@ class BoardComponent extends PositionComponent
   double _phaseDuration = 0;
   bool _running = false;
 
+  /// 是否有补间、消失或弹入的棋子在逐帧变化；逻辑步里顺带统计。
+  bool _visualsAnimating = false;
+
+  /// 控制器刚通知过，需要再画一帧（选中、提示、目标变化等）。
+  bool _dirtyFrame = true;
+  bool _lastReportedActive = true;
+
   int _seenEpoch = 0;
   int _seenRevision = 0;
 
@@ -64,6 +76,7 @@ class BoardComponent extends PositionComponent
   /// 纹样会缺字，因此在启动阶段多刷几次贴图与静止画面。
   static const List<double> _warmupRefreshAt = [1.5, 4, 8];
   int _refreshIndex = 0;
+  async.Timer? _warmupWake;
 
   Vector2? _dragStart;
   Vector2? _dragLast;
@@ -94,6 +107,8 @@ class BoardComponent extends PositionComponent
 
   @override
   void onRemove() {
+    _warmupWake?.cancel();
+    _warmupWake = null;
     controller.removeListener(_onControllerChanged);
     _sprites.dispose();
     _painter.dispose();
@@ -103,6 +118,7 @@ class BoardComponent extends PositionComponent
   void _onControllerChanged() {
     if (isRemoved) return;
     _frameRevision++;
+    _dirtyFrame = true;
     if (controller.boardRevision != _seenRevision) {
       _seenRevision = controller.boardRevision;
       if (!_running) _syncFromBoard();
@@ -111,6 +127,50 @@ class BoardComponent extends PositionComponent
       _seenEpoch = controller.stepEpoch;
       _enqueue(controller.takeSteps());
     }
+    _notifyActivity();
+  }
+
+  /// 是否还需要继续逐帧推进：动画、粒子、提示脉冲、启动预热或待刷新画面。
+  bool get needsFrames =>
+      _dirtyFrame ||
+      _running ||
+      _visualsAnimating ||
+      _sparks.isNotEmpty ||
+      controller.hint != null ||
+      _needsWarmup;
+
+  /// 棋盘还没排版（格子过小）时不预热，避免录一堆 1 像素贴图。
+  bool get _needsWarmup => _layout.cell >= 8 && _sprites.warmupPending;
+
+  /// 把「是否需要逐帧」的变化通知给游戏层，空闲时停掉引擎循环省电。
+  void _notifyActivity() {
+    final active = needsFrames;
+    if (active == _lastReportedActive) return;
+    _lastReportedActive = active;
+    onActivityChanged?.call(active);
+    // 引擎循环停掉后逻辑时钟不再前进，用真实时间补上字体晚到的重录。
+    if (active) {
+      _warmupWake?.cancel();
+      _warmupWake = null;
+    } else if (onActivityChanged != null) {
+      _scheduleWarmupWake();
+    }
+  }
+
+  /// 暂停期间按计划唤醒一次，重录贴图与静止画面。
+  void _scheduleWarmupWake() {
+    _warmupWake?.cancel();
+    if (_refreshIndex >= _warmupRefreshAt.length) return;
+    final target = _warmupRefreshAt[_refreshIndex];
+    final index = _refreshIndex;
+    final delay = ((target - _time) * 1000).round().clamp(0, 1 << 30);
+    _warmupWake = async.Timer(Duration(milliseconds: delay), () {
+      _warmupWake = null;
+      if (isRemoved || _refreshIndex != index) return;
+      if (_time < target) _time = target;
+      _refreshWarmupCaches();
+      _notifyActivity();
+    });
   }
 
   void _enqueue(List<BoardStep> steps) {
@@ -249,8 +309,11 @@ class BoardComponent extends PositionComponent
         (spawn.to ~/ _cols - spawn.fromRow).abs().toDouble(),
       );
     }
-    final duration = (BoardTimings.fallBase + BoardTimings.fallPerCell * maxDistance)
-        .clamp(BoardTimings.fallBase, BoardTimings.fallMax);
+    final duration =
+        (BoardTimings.fallBase + BoardTimings.fallPerCell * maxDistance).clamp(
+          BoardTimings.fallBase,
+          BoardTimings.fallMax,
+        );
     for (final visual in _visuals) {
       if (!visual.tweening) continue;
       visual
@@ -294,12 +357,14 @@ class BoardComponent extends PositionComponent
 
   /// 启动阶段按计划重录贴图，等中文字体加载完成后再把纹样烘焙进去。
   void _refreshWarmupCaches() {
-    if (_refreshIndex >= _warmupRefreshAt.length) return;
-    if (_time < _warmupRefreshAt[_refreshIndex]) return;
-    _refreshIndex++;
-    _sprites.invalidate();
-    _painter.invalidateStatic();
-    _frameRevision++;
+    while (_refreshIndex < _warmupRefreshAt.length &&
+        _time >= _warmupRefreshAt[_refreshIndex]) {
+      _refreshIndex++;
+      _sprites.invalidate();
+      _painter.invalidateStatic();
+      _frameRevision++;
+      _dirtyFrame = true;
+    }
   }
 
   /// 用引擎状态重建视觉列表：保留仍在棋盘上的棋子，补齐新增的棋子。
@@ -347,17 +412,29 @@ class BoardComponent extends PositionComponent
   void update(double dt) {
     super.update(dt);
     _clock.advance(dt, _stepLogic);
+    _warmUpSprites();
+    _dirtyFrame = false;
+    _notifyActivity();
+  }
+
+  /// 空闲帧分批预录贴图，避免第一次消除时才录制造成掉帧。
+  void _warmUpSprites() {
+    if (isRemoved || _layout.cell < 8) return;
+    _sprites.warmupStep(_layout.cell, budget: 3);
   }
 
   void _stepLogic(double span) {
     _time += span;
     _refreshWarmupCaches();
+    var animating = false;
     for (final visual in _visuals) {
       if (visual.tweening) {
         visual.tweenElapsed += span;
-        final progress = (visual.tweenElapsed / visual.tweenDuration)
-            .clamp(0.0, 1.0);
-        final eased = Curves.easeOutCubic.transform(progress);
+        final progress = (visual.tweenElapsed / visual.tweenDuration).clamp(
+          0.0,
+          1.0,
+        );
+        final eased = EaseTable.easeOutCubic.transform(progress);
         visual
           ..col = visual.startCol + (visual.endCol - visual.startCol) * eased
           ..row = visual.startRow + (visual.endRow - visual.startRow) * eased;
@@ -366,12 +443,21 @@ class BoardComponent extends PositionComponent
             ..tweening = false
             ..col = visual.endCol
             ..row = visual.endRow;
+        } else {
+          animating = true;
         }
       }
-      if (visual.dying) visual.dieElapsed += span;
+      if (visual.dying) {
+        visual.dieElapsed += span;
+        if (visual.dieElapsed < BoardTimings.clear) animating = true;
+      }
       if (visual.popIn) {
         visual.popElapsed += span;
-        if (visual.popElapsed >= BoardTimings.pop) visual.popIn = false;
+        if (visual.popElapsed >= BoardTimings.pop) {
+          visual.popIn = false;
+        } else {
+          animating = true;
+        }
       }
     }
     _visuals.removeWhere(
@@ -382,6 +468,7 @@ class BoardComponent extends PositionComponent
       spark.elapsed += span;
     }
     _sparks.removeWhere((spark) => spark.finished);
+    _visualsAnimating = animating || _sparks.isNotEmpty;
 
     if (!_running) return;
     _phaseElapsed += span;
@@ -406,14 +493,12 @@ class BoardComponent extends PositionComponent
     _seenRevision = controller.boardRevision;
   }
 
-  /// 是否有补间、消失、弹入或粒子需要逐帧重绘。
-  bool get _isAnimating {
-    if (_running || _sparks.isNotEmpty) return true;
-    for (final visual in _visuals) {
-      if (visual.tweening || visual.dying || visual.popIn) return true;
-    }
-    return false;
-  }
+  /// 是否有补间、消失、弹入、粒子或提示脉冲需要逐帧重绘。
+  bool get _isAnimating =>
+      _running ||
+      _visualsAnimating ||
+      _sparks.isNotEmpty ||
+      controller.hint != null;
 
   @override
   void render(Canvas canvas) {

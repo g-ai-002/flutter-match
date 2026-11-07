@@ -7,6 +7,10 @@ import '../game/match_controller.dart';
 import 'board_component.dart';
 
 /// Flame 游戏入口：棋盘组件铺满整个游戏区域。
+///
+/// 棋盘空闲（无动画、无粒子、无提示脉冲且贴图预热完成）时暂停引擎循环，
+/// 静止画面保持最后一帧，CPU 与电量不再被空转的 ticker 消耗；
+/// 控制器通知、窗口尺寸变化或启动预热到点后再恢复循环补画一帧。
 class MatchGame extends FlameGame {
   MatchGame({
     required this.controller,
@@ -18,6 +22,11 @@ class MatchGame extends FlameGame {
   final ValueListenable<bool> darkMode;
   final LogicRate logicRate;
   BoardComponent? _board;
+  bool _idlePaused = false;
+
+  /// 是否因空闲而暂停了引擎循环，供测试断言。
+  @visibleForTesting
+  bool get idlePaused => _idlePaused;
 
   @override
   Color backgroundColor() => Colors.transparent;
@@ -29,6 +38,7 @@ class MatchGame extends FlameGame {
       darkMode: darkMode,
       logicRate: logicRate,
     );
+    board.onActivityChanged = _handleActivity;
     _board = board;
     _fit(board);
     await add(board);
@@ -38,12 +48,34 @@ class MatchGame extends FlameGame {
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
     final board = _board;
-    if (board != null) _fit(board);
+    if (board != null) {
+      _fit(board);
+      _wakeUp();
+    }
   }
 
   void _fit(BoardComponent board) {
     board
       ..size = size.clone()
       ..position = Vector2.zero();
+  }
+
+  /// 供测试直接驱动空闲开关，不依赖 Flame 渲染盒是否已布局。
+  @visibleForTesting
+  void handleActivity(bool active) => _handleActivity(active);
+
+  void _handleActivity(bool active) {
+    if (active) {
+      _wakeUp();
+    } else if (!_idlePaused) {
+      _idlePaused = true;
+      pauseEngine();
+    }
+  }
+
+  void _wakeUp() {
+    if (!_idlePaused) return;
+    _idlePaused = false;
+    resumeEngine();
   }
 }
