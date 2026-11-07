@@ -33,13 +33,13 @@
 
 ## 下载
 
-v0.1.3（最新发布）：[Gitea Release](http://192.168.31.120:3020/GTech/flutter-match/releases/tag/v0.1.3)
+v0.1.4（最新发布）：[Gitea Release](http://192.168.31.120:3020/GTech/flutter-match/releases/tag/v0.1.4)
 
 | 平台 | 产物 |
 | --- | --- |
-| Android (arm64) | `flutter-match-0.1.3-android-aarch64.apk` |
-| Windows (x64, Win10+) | `flutter-match-0.1.3-windows-x86_64.zip` |
-| Web | `flutter-match-0.1.3-web.zip`（解压后起静态服务器） |
+| Android (arm64) | `flutter-match-0.1.4-android-aarch64.apk` |
+| Windows (x64, Win10+) | `flutter-match-0.1.4-windows-x86_64.zip` |
+| Web | `flutter-match-0.1.4-web.zip`（解压后起静态服务器） |
 
 Web 试玩站点由 `build` 工作流推送到 `tea-pages` 分支，按版本目录访问。
 
@@ -77,6 +77,7 @@ lib/
 
 | 版本 | 说明 |
 | --- | --- |
+| v0.1.4 | 修复 Web 字体晚到导致棋子不可见，启动阶段分档重录贴图，测试增至 66 条 |
 | v0.1.3 | 性能：静态棋盘帧缓存、绘制零分配优化、局部连线检测、音频后台合成，测试增至 64 条 |
 | v0.1.2 | 重构拆分引擎、渲染与页面职责，计分/提示规则独立，测试增至 57 条 |
 | v0.1.1 | 修复窄屏首页溢出，入口在手机宽度下改为上下堆叠 |
