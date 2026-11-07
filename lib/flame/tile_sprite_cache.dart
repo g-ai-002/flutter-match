@@ -51,7 +51,8 @@ class TileSpriteCache {
     _cellKey = key;
   }
 
-  void dispose() {
+  /// 丢弃全部贴图但保留当前格子尺寸，下一次取图时按新字体状态重录。
+  void invalidate() {
     for (final picture in _tiles.values) {
       picture.dispose();
     }
@@ -61,6 +62,10 @@ class TileSpriteCache {
     _tiles.clear();
     _ice.clear();
     _glyphs.clear();
+  }
+
+  void dispose() {
+    invalidate();
     _cellKey = 0;
   }
 }

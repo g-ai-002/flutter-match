@@ -70,4 +70,93 @@ void main() {
       controller.dispose();
     });
   });
+
+  testWidgets('启动预热到点后重录贴图与静止画面（Web 字体晚到兜底）', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 8);
+      final board = BoardComponent(
+        controller: controller,
+        darkMode: ValueNotifier(false),
+      );
+      await board.onLoad();
+      board.size = Vector2(480, 480);
+
+      _paint(board);
+      expect(board.painter.staticFrameBuilds, 1);
+
+      // 1.5 秒预热点之前只重放缓存。
+      for (var frame = 0; frame < 60; frame++) {
+        board.update(1 / 60);
+        _paint(board);
+      }
+      expect(board.painter.staticFrameBuilds, 1);
+
+      // 越过预热点后贴图与静止画面重录一次，字体就绪的纹样随之生效。
+      for (var frame = 0; frame < 40; frame++) {
+        board.update(1 / 60);
+      }
+      _paint(board);
+      expect(board.painter.staticFrameBuilds, 2);
+      _paint(board);
+      expect(board.painter.staticFrameBuilds, 2);
+
+      board.removeFromParent();
+      controller.dispose();
+    });
+  });
+
+  testWidgets('静态缓存帧与逐帧绘制像素一致，棋子没有被裁掉', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 21);
+      final board = BoardComponent(
+        controller: controller,
+        darkMode: ValueNotifier(false),
+      );
+      await board.onLoad();
+      board.size = Vector2(560, 560);
+
+      final cached = ui.PictureRecorder();
+      board.render(ui.Canvas(cached));
+      final cachedPicture = cached.endRecording();
+      final cachedImage = await cachedPicture.toImage(560, 560);
+      final cachedData = (await cachedImage.toByteData())!;
+
+      final direct = ui.PictureRecorder();
+      board.painter.paint(
+        ui.Canvas(direct),
+        visuals: board.visuals,
+        sparks: const [],
+        time: 0,
+      );
+      final directPicture = direct.endRecording();
+      final directImage = await directPicture.toImage(560, 560);
+      final directData = (await directImage.toByteData())!;
+
+      var different = 0;
+      var colored = 0;
+      for (var offset = 0; offset < cachedData.lengthInBytes; offset += 4) {
+        final r = cachedData.getUint8(offset);
+        final g = cachedData.getUint8(offset + 1);
+        final b = cachedData.getUint8(offset + 2);
+        if (r != directData.getUint8(offset) ||
+            g != directData.getUint8(offset + 1) ||
+            b != directData.getUint8(offset + 2)) {
+          different++;
+        }
+        if ((r - g).abs() > 30 || (g - b).abs() > 30 || (b - r).abs() > 30) {
+          colored++;
+        }
+      }
+      expect(different, 0, reason: '缓存帧必须与逐帧绘制完全一致');
+      // 底板是低饱和的米色，彩色像素主要来自棋子，数量不足说明棋子没画出来。
+      expect(colored, greaterThan(50000));
+
+      cachedPicture.dispose();
+      directPicture.dispose();
+      cachedImage.dispose();
+      directImage.dispose();
+      board.removeFromParent();
+      controller.dispose();
+    });
+  });
 }

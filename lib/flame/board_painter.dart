@@ -104,6 +104,13 @@ class BoardPainter {
     _panelCellKey = -1;
   }
 
+  /// 丢弃缓存的静止画面：字体晚到或贴图重建后需要重新录制。
+  void invalidateStatic() {
+    _staticFrame?.dispose();
+    _staticFrame = null;
+    _staticRevision = -1;
+  }
+
   void _paintScene(
     Canvas canvas, {
     required List<TileVisual> visuals,

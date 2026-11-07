@@ -60,6 +60,11 @@ class BoardComponent extends PositionComponent
   /// 视觉状态版本号：棋盘内容、选中或提示变化时自增，用于静态帧缓存失效。
   int _frameRevision = 0;
 
+  /// 启动后的贴图重录时刻（秒）。Web 中文字体异步加载，早于字体就绪烘焙的
+  /// 纹样会缺字，因此在启动阶段多刷几次贴图与静止画面。
+  static const List<double> _warmupRefreshAt = [1.5, 4, 8];
+  int _refreshIndex = 0;
+
   Vector2? _dragStart;
   Vector2? _dragLast;
   int? _dragStartCell;
@@ -70,6 +75,10 @@ class BoardComponent extends PositionComponent
   /// 暴露绘制器，供渲染缓存测试断言。
   @visibleForTesting
   BoardPainter get painter => _painter;
+
+  /// 当前视觉列表，供渲染一致性测试比对。
+  @visibleForTesting
+  List<TileVisual> get visuals => List.unmodifiable(_visuals);
 
   @override
   Future<void> onLoad() async {
@@ -283,6 +292,16 @@ class BoardComponent extends PositionComponent
     for (final visual in _visuals) visual.id: visual,
   };
 
+  /// 启动阶段按计划重录贴图，等中文字体加载完成后再把纹样烘焙进去。
+  void _refreshWarmupCaches() {
+    if (_refreshIndex >= _warmupRefreshAt.length) return;
+    if (_time < _warmupRefreshAt[_refreshIndex]) return;
+    _refreshIndex++;
+    _sprites.invalidate();
+    _painter.invalidateStatic();
+    _frameRevision++;
+  }
+
   /// 用引擎状态重建视觉列表：保留仍在棋盘上的棋子，补齐新增的棋子。
   void _syncFromBoard() {
     final board = controller.board;
@@ -332,6 +351,7 @@ class BoardComponent extends PositionComponent
 
   void _stepLogic(double span) {
     _time += span;
+    _refreshWarmupCaches();
     for (final visual in _visuals) {
       if (visual.tweening) {
         visual.tweenElapsed += span;
