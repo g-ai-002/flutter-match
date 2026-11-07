@@ -6,17 +6,21 @@ import '../models/tile.dart';
 import '../theme/tile_art.dart';
 
 /// 棋子与冰层的贴图缓存：按格子尺寸缓存 Picture，尺寸变化时才重绘。
+///
+/// 键使用整数，避免每帧为每枚棋子拼接字符串。
 class TileSpriteCache {
   final TileGlyphCache _glyphs = TileGlyphCache();
-  final Map<String, Picture> _tiles = {};
+  final Map<int, Picture> _tiles = {};
   final Map<int, Picture> _ice = {};
   int _cellKey = 0;
+
+  static int _tileKey(TileType type, SpecialType special) =>
+      type.index * SpecialType.values.length + special.index;
 
   /// 某类棋子的贴图，[cell] 为当前格子边长。
   Picture tile(TileType type, SpecialType special, double cell) {
     _syncCell(cell);
-    final key = '${type.name}|${special.name}';
-    return _tiles.putIfAbsent(key, () {
+    return _tiles.putIfAbsent(_tileKey(type, special), () {
       final recorder = PictureRecorder();
       paintTile(
         Canvas(recorder),
@@ -34,11 +38,7 @@ class TileSpriteCache {
     _syncCell(cell);
     return _ice.putIfAbsent(layers, () {
       final recorder = PictureRecorder();
-      paintIce(
-        Canvas(recorder),
-        Rect.fromLTWH(0, 0, cell, cell),
-        layers,
-      );
+      paintIce(Canvas(recorder), Rect.fromLTWH(0, 0, cell, cell), layers);
       return recorder.endRecording();
     });
   }

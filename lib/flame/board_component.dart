@@ -57,12 +57,19 @@ class BoardComponent extends PositionComponent
   int _seenEpoch = 0;
   int _seenRevision = 0;
 
+  /// 视觉状态版本号：棋盘内容、选中或提示变化时自增，用于静态帧缓存失效。
+  int _frameRevision = 0;
+
   Vector2? _dragStart;
   Vector2? _dragLast;
   int? _dragStartCell;
 
   int get _cols => controller.level.cols;
   int get _rows => controller.level.rows;
+
+  /// 暴露绘制器，供渲染缓存测试断言。
+  @visibleForTesting
+  BoardPainter get painter => _painter;
 
   @override
   Future<void> onLoad() async {
@@ -80,11 +87,13 @@ class BoardComponent extends PositionComponent
   void onRemove() {
     controller.removeListener(_onControllerChanged);
     _sprites.dispose();
+    _painter.dispose();
     super.onRemove();
   }
 
   void _onControllerChanged() {
     if (isRemoved) return;
+    _frameRevision++;
     if (controller.boardRevision != _seenRevision) {
       _seenRevision = controller.boardRevision;
       if (!_running) _syncFromBoard();
@@ -108,6 +117,7 @@ class BoardComponent extends PositionComponent
 
   void _startStep() {
     _phaseElapsed = 0;
+    _frameRevision++;
     switch (_steps[_stepIndex]) {
       case final SwapStep step:
         _startSwap(step);
@@ -117,7 +127,7 @@ class BoardComponent extends PositionComponent
         _phaseDuration = BoardTimings.clear;
       case final FallStep step:
         _startFall(step);
-        // 由 _startFall 按最大下落距离设置时长。
+      // 由 _startFall 按最大下落距离设置时长。
     }
   }
 
@@ -133,8 +143,9 @@ class BoardComponent extends PositionComponent
   }
 
   void _startClear(ClearStep step) {
+    final byCell = _liveByCell();
     for (final cell in step.cells) {
-      final visual = _visualAt(cell);
+      final visual = byCell[cell];
       if (visual == null) continue;
       visual
         ..dying = true
@@ -148,7 +159,7 @@ class BoardComponent extends PositionComponent
       );
     }
     for (final placed in step.specials) {
-      final existing = _visualAt(placed.index);
+      final existing = byCell[placed.index];
       if (existing != null) _visuals.remove(existing);
       _visuals.add(
         TileVisual(
@@ -193,8 +204,10 @@ class BoardComponent extends PositionComponent
 
   void _startFall(FallStep step) {
     var maxDistance = 0.0;
+    final byId = _byId();
+    final byCell = _liveByCell();
     for (final move in step.moves) {
-      final visual = _visualById(move.tileId) ?? _visualAt(move.from);
+      final visual = byId[move.tileId] ?? byCell[move.from];
       if (visual == null) continue;
       final fromCol = move.from % _cols;
       final fromRow = move.from ~/ _cols;
@@ -257,22 +270,29 @@ class BoardComponent extends PositionComponent
     return null;
   }
 
-  TileVisual? _visualById(int id) {
+  /// 未消失的视觉按格子下标建表，避免逐步长扫描。
+  Map<int, TileVisual> _liveByCell() {
+    final map = <int, TileVisual>{};
     for (final visual in _visuals) {
-      if (visual.id == id) return visual;
+      if (!visual.dying) map[visual.cell] = visual;
     }
-    return null;
+    return map;
   }
+
+  Map<int, TileVisual> _byId() => {
+    for (final visual in _visuals) visual.id: visual,
+  };
 
   /// 用引擎状态重建视觉列表：保留仍在棋盘上的棋子，补齐新增的棋子。
   void _syncFromBoard() {
     final board = controller.board;
+    final byId = _byId();
     final keep = <int>{};
     for (var index = 0; index < board.length; index++) {
       final tile = board.tiles[index];
       if (tile == null) continue;
       keep.add(tile.id);
-      final existing = _visualById(tile.id);
+      final existing = byId[tile.id];
       final col = (index % _cols).toDouble();
       final row = (index ~/ _cols).toDouble();
       if (existing == null) {
@@ -301,6 +321,7 @@ class BoardComponent extends PositionComponent
     _visuals.removeWhere(
       (visual) => !keep.contains(visual.id) && !visual.dying,
     );
+    _frameRevision++;
   }
 
   @override
@@ -365,11 +386,27 @@ class BoardComponent extends PositionComponent
     _seenRevision = controller.boardRevision;
   }
 
+  /// 是否有补间、消失、弹入或粒子需要逐帧重绘。
+  bool get _isAnimating {
+    if (_running || _sparks.isNotEmpty) return true;
+    for (final visual in _visuals) {
+      if (visual.tweening || visual.dying || visual.popIn) return true;
+    }
+    return false;
+  }
+
   @override
   void render(Canvas canvas) {
     super.render(canvas);
     _layout.fit(size);
-    _painter.paint(canvas, visuals: _visuals, sparks: _sparks, time: _time);
+    _painter.paint(
+      canvas,
+      visuals: _visuals,
+      sparks: _sparks,
+      time: _time,
+      animated: _isAnimating,
+      revision: _frameRevision,
+    );
   }
 
   @override
