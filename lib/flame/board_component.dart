@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show Picture, PictureRecorder;
 
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
@@ -9,81 +8,19 @@ import 'package:flutter/material.dart';
 import '../game/board_step.dart';
 import '../game/logic_rate.dart';
 import '../game/match_controller.dart';
-import '../models/tile.dart';
 import '../services/sound_service.dart';
 import '../theme/tile_art.dart';
+import 'board_layout.dart';
+import 'board_painter.dart';
+import 'board_timings.dart';
+import 'spark.dart';
+import 'tile_sprite_cache.dart';
+import 'tile_visual.dart';
 
-const double _swapDuration = 0.14;
-const double _clearDuration = 0.26;
-const double _fallBaseDuration = 0.1;
-const double _fallPerCell = 0.045;
-const double _fallMaxDuration = 0.4;
-const double _popDuration = 0.2;
-
-class _TileVisual {
-  _TileVisual({
-    required this.id,
-    required this.type,
-    required this.special,
-    required this.cell,
-    required this.col,
-    required this.row,
-  });
-
-  final int id;
-  TileType type;
-  SpecialType special;
-  int cell;
-
-  double col;
-  double row;
-
-  double startCol = 0;
-  double startRow = 0;
-  double endCol = 0;
-  double endRow = 0;
-  double tweenElapsed = 0;
-  double tweenDuration = 0;
-  bool tweening = false;
-
-  bool dying = false;
-  double dieElapsed = 0;
-
-  bool popIn = false;
-  double popElapsed = 0;
-
-  double get scale {
-    if (popIn) {
-      final t = (popElapsed / _popDuration).clamp(0.0, 1.0);
-      return 0.55 + 0.45 * Curves.easeOutBack.transform(t);
-    }
-    return 1;
-  }
-
-  double get opacity {
-    if (dying) {
-      return (1 - dieElapsed / _clearDuration).clamp(0.0, 1.0);
-    }
-    if (popIn) return (popElapsed / _popDuration).clamp(0.0, 1.0);
-    return 1;
-  }
-
-  Offset get positionOffset => Offset(col, row);
-}
-
-class _Spark {
-  _Spark({required this.center, required this.color, required this.seed});
-
-  final Offset center;
-  final Color color;
-  final double seed;
-  double elapsed = 0;
-  static const double duration = 0.42;
-
-  double get progress => (elapsed / duration).clamp(0.0, 1.0);
-}
-
-/// Flame 棋盘组件：绘制棋子、冰层、消除特效与提示，并处理点选与滑动。
+/// Flame 棋盘组件：驱动动画队列、同步引擎状态，并处理点选与滑动。
+///
+/// 绘制交给 [BoardPainter]，排版交给 [BoardLayout]，贴图交给
+/// [TileSpriteCache]，组件本身只维护动画阶段与输入。
 class BoardComponent extends PositionComponent
     with TapCallbacks, DragCallbacks {
   BoardComponent({
@@ -96,19 +33,19 @@ class BoardComponent extends PositionComponent
   final ValueListenable<bool> darkMode;
   final FixedStepClock _clock;
 
-  final List<_TileVisual> _visuals = [];
-  final List<_Spark> _sparks = [];
-  final TileGlyphCache _glyphs = TileGlyphCache();
+  final List<TileVisual> _visuals = [];
+  final List<Spark> _sparks = [];
+  final TileSpriteCache _sprites = TileSpriteCache();
   final math.Random _random = math.Random(7);
-  final Map<String, Picture> _tileSprites = {};
-  final Map<int, Picture> _iceSprites = {};
-  int _spriteCellKey = 0;
 
-  double _cell = 1;
-  double _left = 0;
-  double _top = 0;
-  double _layoutWidth = -1;
-  double _layoutHeight = -1;
+  late final BoardLayout _layout = BoardLayout(cols: _cols, rows: _rows);
+  late final BoardPainter _painter = BoardPainter(
+    controller: controller,
+    layout: _layout,
+    sprites: _sprites,
+    darkMode: darkMode,
+  );
+
   double _time = 0;
 
   List<BoardStep> _steps = const [];
@@ -129,7 +66,7 @@ class BoardComponent extends PositionComponent
 
   @override
   Future<void> onLoad() async {
-    _fitToSize();
+    _layout.fit(size);
     _syncFromBoard();
     _seenEpoch = controller.stepEpoch;
     _seenRevision = controller.boardRevision;
@@ -142,8 +79,7 @@ class BoardComponent extends PositionComponent
   @override
   void onRemove() {
     controller.removeListener(_onControllerChanged);
-    _glyphs.clear();
-    _clearSprites();
+    _sprites.dispose();
     super.onRemove();
   }
 
@@ -172,15 +108,14 @@ class BoardComponent extends PositionComponent
 
   void _startStep() {
     _phaseElapsed = 0;
-    final step = _steps[_stepIndex];
-    switch (step) {
-      case SwapStep():
+    switch (_steps[_stepIndex]) {
+      case final SwapStep step:
         _startSwap(step);
-        _phaseDuration = _swapDuration;
-      case ClearStep():
+        _phaseDuration = BoardTimings.swap;
+      case final ClearStep step:
         _startClear(step);
-        _phaseDuration = _clearDuration;
-      case FallStep():
+        _phaseDuration = BoardTimings.clear;
+      case final FallStep step:
         _startFall(step);
         // 由 _startFall 按最大下落距离设置时长。
     }
@@ -193,19 +128,20 @@ class BoardComponent extends PositionComponent
       _phaseDuration = 0.02;
       return;
     }
-    _tweenTo(first, step.b, _swapDuration);
-    _tweenTo(second, step.a, _swapDuration);
+    _tweenTo(first, step.b, BoardTimings.swap);
+    _tweenTo(second, step.a, BoardTimings.swap);
   }
 
   void _startClear(ClearStep step) {
     for (final cell in step.cells) {
       final visual = _visualAt(cell);
       if (visual == null) continue;
-      visual.dying = true;
-      visual.dieElapsed = 0;
+      visual
+        ..dying = true
+        ..dieElapsed = 0;
       _sparks.add(
-        _Spark(
-          center: _cellCenter(visual.cell),
+        Spark(
+          center: _layout.cellCenter(visual.cell),
           color: kTilePalettes[visual.type]!.base,
           seed: _random.nextDouble(),
         ),
@@ -214,18 +150,19 @@ class BoardComponent extends PositionComponent
     for (final placed in step.specials) {
       final existing = _visualAt(placed.index);
       if (existing != null) _visuals.remove(existing);
-      final visual = _TileVisual(
-        id: placed.tile.id,
-        type: placed.tile.type,
-        special: placed.tile.special,
-        cell: placed.index,
-        col: (placed.index % _cols).toDouble(),
-        row: (placed.index ~/ _cols).toDouble(),
-      )..popIn = true;
-      _visuals.add(visual);
+      _visuals.add(
+        TileVisual(
+          id: placed.tile.id,
+          type: placed.tile.type,
+          special: placed.tile.special,
+          cell: placed.index,
+          col: (placed.index % _cols).toDouble(),
+          row: (placed.index ~/ _cols).toDouble(),
+        )..popIn = true,
+      );
       _sparks.add(
-        _Spark(
-          center: _cellCenter(placed.index),
+        Spark(
+          center: _layout.cellCenter(placed.index),
           color: const Color(0xFFFFE7A8),
           seed: _random.nextDouble(),
         ),
@@ -234,9 +171,14 @@ class BoardComponent extends PositionComponent
     if (_sparks.length > 140) {
       _sparks.removeRange(0, _sparks.length - 140);
     }
+    _playClearSound(step);
+  }
 
+  /// 破冰、特殊棋子、大连锁与普通消除使用不同音效。
+  void _playClearSound(ClearStep step) {
     final iceBroken = step.iceChanges.any((change) => change.broken);
-    final hasSpecial = step.specials.isNotEmpty ||
+    final hasSpecial =
+        step.specials.isNotEmpty ||
         step.tiles.any((tile) => tile.special.isSpecial);
     if (iceBroken) {
       SoundService.play(FeedbackKind.ice);
@@ -258,9 +200,10 @@ class BoardComponent extends PositionComponent
       final fromRow = move.from ~/ _cols;
       final toCol = move.to % _cols;
       final toRow = move.to ~/ _cols;
-      final distance =
-          (fromCol - toCol).abs() + (fromRow - toRow).abs();
-      maxDistance = math.max(maxDistance, distance.toDouble());
+      maxDistance = math.max(
+        maxDistance,
+        ((fromCol - toCol).abs() + (fromRow - toRow).abs()).toDouble(),
+      );
       if (visual.cell != move.from) {
         visual
           ..col = fromCol.toDouble()
@@ -269,7 +212,7 @@ class BoardComponent extends PositionComponent
       _tweenTo(visual, move.to, 0.01);
     }
     for (final spawn in step.spawns) {
-      final visual = _TileVisual(
+      final visual = TileVisual(
         id: spawn.tile.id,
         type: spawn.tile.type,
         special: spawn.tile.special,
@@ -284,8 +227,8 @@ class BoardComponent extends PositionComponent
         (spawn.to ~/ _cols - spawn.fromRow).abs().toDouble(),
       );
     }
-    final duration = (_fallBaseDuration + _fallPerCell * maxDistance)
-        .clamp(_fallBaseDuration, _fallMaxDuration);
+    final duration = (BoardTimings.fallBase + BoardTimings.fallPerCell * maxDistance)
+        .clamp(BoardTimings.fallBase, BoardTimings.fallMax);
     for (final visual in _visuals) {
       if (!visual.tweening) continue;
       visual
@@ -295,7 +238,7 @@ class BoardComponent extends PositionComponent
     _phaseDuration = duration;
   }
 
-  void _tweenTo(_TileVisual visual, int cell, double duration) {
+  void _tweenTo(TileVisual visual, int cell, double duration) {
     visual
       ..startCol = visual.col
       ..startRow = visual.row
@@ -307,23 +250,21 @@ class BoardComponent extends PositionComponent
       ..cell = cell;
   }
 
-  _TileVisual? _visualAt(int cell) {
+  TileVisual? _visualAt(int cell) {
     for (final visual in _visuals) {
       if (visual.cell == cell && !visual.dying) return visual;
     }
     return null;
   }
 
-  _TileVisual? _visualById(int id) {
+  TileVisual? _visualById(int id) {
     for (final visual in _visuals) {
       if (visual.id == id) return visual;
     }
     return null;
   }
 
-  Offset _cellCenter(int cell) =>
-      Offset(_left + (cell % _cols + 0.5) * _cell, _top + (cell ~/ _cols + 0.5) * _cell);
-
+  /// 用引擎状态重建视觉列表：保留仍在棋盘上的棋子，补齐新增的棋子。
   void _syncFromBoard() {
     final board = controller.board;
     final keep = <int>{};
@@ -336,7 +277,7 @@ class BoardComponent extends PositionComponent
       final row = (index ~/ _cols).toDouble();
       if (existing == null) {
         _visuals.add(
-          _TileVisual(
+          TileVisual(
             id: tile.id,
             type: tile.type,
             special: tile.special,
@@ -389,17 +330,17 @@ class BoardComponent extends PositionComponent
       if (visual.dying) visual.dieElapsed += span;
       if (visual.popIn) {
         visual.popElapsed += span;
-        if (visual.popElapsed >= _popDuration) visual.popIn = false;
+        if (visual.popElapsed >= BoardTimings.pop) visual.popIn = false;
       }
     }
     _visuals.removeWhere(
-      (visual) => visual.dying && visual.dieElapsed >= _clearDuration,
+      (visual) => visual.dying && visual.dieElapsed >= BoardTimings.clear,
     );
 
     for (final spark in _sparks) {
       spark.elapsed += span;
     }
-    _sparks.removeWhere((spark) => spark.elapsed >= _Spark.duration);
+    _sparks.removeWhere((spark) => spark.finished);
 
     if (!_running) return;
     _phaseElapsed += span;
@@ -419,284 +360,22 @@ class BoardComponent extends PositionComponent
     _steps = const [];
     _stepIndex = 0;
     _syncFromBoard();
-    _seenRevision = controller.boardRevision;
     controller.finishAnimation();
+    // finishAnimation 可能触发死局自动重排，把新版本号带上避免重复同步。
     _seenRevision = controller.boardRevision;
-  }
-
-  void _clearSprites() {
-    for (final sprite in _tileSprites.values) {
-      sprite.dispose();
-    }
-    for (final sprite in _iceSprites.values) {
-      sprite.dispose();
-    }
-    _tileSprites.clear();
-    _iceSprites.clear();
-    _spriteCellKey = 0;
-  }
-
-  void _ensureSpriteCell() {
-    final key = (_cell * 4).round();
-    if (key == _spriteCellKey) return;
-    _clearSprites();
-    _spriteCellKey = key;
-    _glyphs.clear();
-  }
-
-  Picture _tileSprite(TileType type, SpecialType special) {
-    final key = '${type.name}|${special.name}';
-    return _tileSprites.putIfAbsent(key, () {
-      final recorder = PictureRecorder();
-      paintTile(
-        Canvas(recorder),
-        Rect.fromLTWH(0, 0, _cell, _cell),
-        type,
-        special,
-        _glyphs,
-      );
-      return recorder.endRecording();
-    });
-  }
-
-  Picture _iceSprite(int layers) {
-    return _iceSprites.putIfAbsent(layers, () {
-      final recorder = PictureRecorder();
-      paintIce(
-        Canvas(recorder),
-        Rect.fromLTWH(0, 0, _cell, _cell),
-        layers,
-      );
-      return recorder.endRecording();
-    });
-  }
-
-  void _fitToSize() {
-    if (size.x <= 0 || size.y <= 0) return;
-    if (size.x == _layoutWidth && size.y == _layoutHeight) return;
-    _layoutWidth = size.x;
-    _layoutHeight = size.y;
-    final padding = math.min(size.x, size.y) * 0.02 + 4;
-    final availableWidth = math.max(1.0, size.x - padding * 2);
-    final availableHeight = math.max(1.0, size.y - padding * 2);
-    _cell = math.min(availableWidth / _cols, availableHeight / _rows);
-    _left = (size.x - _cell * _cols) / 2;
-    _top = (size.y - _cell * _rows) / 2;
   }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    _fitToSize();
-    _ensureSpriteCell();
-    _paintPanel(canvas);
-
-    final sorted = [..._visuals]
-      ..sort((a, b) {
-        final rowCompare = a.row.compareTo(b.row);
-        if (rowCompare != 0) return rowCompare;
-        return a.col.compareTo(b.col);
-      });
-    for (final visual in sorted) {
-      _paintTileVisual(canvas, visual);
-    }
-
-    final board = controller.board;
-    for (var index = 0; index < board.length; index++) {
-      final ice = board.ice[index];
-      if (ice <= 0) continue;
-      final rect = _cellRect(index);
-      canvas.save();
-      canvas.translate(rect.left, rect.top);
-      canvas.drawPicture(_iceSprite(ice));
-      canvas.restore();
-    }
-
-    _paintSelection(canvas);
-    _paintHint(canvas);
-    _paintSparks(canvas);
-  }
-
-  Rect _cellRect(int cell) => Rect.fromLTWH(
-    _left + (cell % _cols) * _cell,
-    _top + (cell ~/ _cols) * _cell,
-    _cell,
-    _cell,
-  );
-
-  void _paintPanel(Canvas canvas) {
-    final rect = Rect.fromLTWH(
-      _left,
-      _top,
-      _cell * _cols,
-      _cell * _rows,
-    );
-    final radius = Radius.circular(_cell * 0.35);
-    final outer = RRect.fromRectAndRadius(rect.inflate(_cell * 0.16), radius);
-    canvas.drawRRect(
-      outer.shift(Offset(0, _cell * 0.07)),
-      Paint()
-        ..color = const Color(0x33000000)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, _cell * 0.14),
-    );
-    final dark = darkMode.value;
-    canvas.drawRRect(
-      outer,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: dark
-              ? const [Color(0xFF3A2E22), Color(0xFF241C15)]
-              : const [Color(0xFFF4E3BF), Color(0xFFE2C795)],
-        ).createShader(rect),
-    );
-    final inner = RRect.fromRectAndRadius(rect, radius * 0.7);
-    canvas.drawRRect(
-      inner,
-      Paint()
-        ..color = dark ? const Color(0xFF221B14) : const Color(0xFFF1DFBB),
-    );
-    final cellPaint = Paint()
-      ..color = (dark ? Colors.white : Colors.black).withValues(alpha: 0.035);
-    for (var row = 0; row < _rows; row++) {
-      for (var col = 0; col < _cols; col++) {
-        if ((row + col).isOdd) continue;
-        final cellRect = Rect.fromLTWH(
-          _left + col * _cell,
-          _top + row * _cell,
-          _cell,
-          _cell,
-        ).deflate(_cell * 0.08);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(cellRect, Radius.circular(_cell * 0.2)),
-          cellPaint,
-        );
-      }
-    }
-  }
-
-  void _paintTileVisual(Canvas canvas, _TileVisual visual) {
-    final center = Offset(
-      _left + (visual.col + 0.5) * _cell,
-      _top + (visual.row + 0.5) * _cell,
-    );
-    final rect = Rect.fromCenter(center: center, width: _cell, height: _cell);
-    final selected = controller.selected == visual.cell;
-    final scale = visual.scale * (selected ? 1.08 : 1.0);
-    final opacity = visual.opacity;
-    final sprite = _tileSprite(visual.type, visual.special);
-
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.scale(scale);
-    canvas.translate(-center.dx, -center.dy);
-    if (opacity < 0.999) {
-      canvas.saveLayer(
-        rect.inflate(_cell * 0.2),
-        Paint()..color = Colors.white.withValues(alpha: opacity),
-      );
-    }
-    if (selected) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          rect.deflate(_cell * 0.06),
-          Radius.circular(_cell * 0.26),
-        ),
-        Paint()
-          ..color = const Color(0xFFFFD27A).withValues(alpha: 0.5)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, _cell * 0.1),
-      );
-    }
-    canvas.drawPicture(sprite);
-    if (opacity < 0.999) canvas.restore();
-    canvas.restore();
-  }
-
-  void _paintSelection(Canvas canvas) {
-    final selected = controller.selected;
-    if (selected < 0) return;
-    _paintRing(
-      canvas,
-      _cellRect(selected),
-      const Color(0xFFFFD27A),
-      width: _cell * 0.055,
-      inset: _cell * 0.02,
-    );
-  }
-
-  void _paintHint(Canvas canvas) {
-    final hint = controller.hint;
-    if (hint == null) return;
-    final pulse = 0.5 + 0.5 * math.sin(_time * 7);
-    final color = Color.lerp(
-      const Color(0xFF8C2F24),
-      const Color(0xFFE9B44C),
-      pulse,
-    )!;
-    for (final cell in [hint.a, hint.b]) {
-      _paintRing(
-        canvas,
-        _cellRect(cell),
-        color,
-        width: _cell * (0.035 + 0.02 * pulse),
-        inset: _cell * 0.03,
-      );
-    }
-  }
-
-  void _paintRing(
-    Canvas canvas,
-    Rect cellRect,
-    Color color, {
-    required double width,
-    required double inset,
-  }) {
-    final rect = cellRect.deflate(inset + width / 2);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(_cell * 0.26)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width
-        ..color = color.withValues(alpha: 0.9),
-    );
-  }
-
-  void _paintSparks(Canvas canvas) {
-    for (final spark in _sparks) {
-      final t = spark.progress;
-      final fade = (1 - t).clamp(0.0, 1.0);
-      final radius = _cell * (0.08 + 0.42 * Curves.easeOutQuad.transform(t));
-      canvas.drawCircle(
-        spark.center,
-        radius,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = _cell * 0.05 * fade
-          ..color = spark.color.withValues(alpha: 0.7 * fade),
-      );
-      final angle = spark.seed * math.pi * 2;
-      final dotCenter = spark.center +
-          Offset(math.cos(angle), math.sin(angle)) * radius * 0.8;
-      canvas.drawCircle(
-        dotCenter,
-        _cell * 0.035 * fade,
-        Paint()..color = Colors.white.withValues(alpha: 0.8 * fade),
-      );
-    }
-  }
-
-  int? _cellAt(Vector2 point) {
-    final col = ((point.x - _left) / _cell).floor();
-    final row = ((point.y - _top) / _cell).floor();
-    if (col < 0 || col >= _cols || row < 0 || row >= _rows) return null;
-    return row * _cols + col;
+    _layout.fit(size);
+    _painter.paint(canvas, visuals: _visuals, sparks: _sparks, time: _time);
   }
 
   @override
   void onTapDown(TapDownEvent event) {
     if (!controller.canInteract) return;
-    final cell = _cellAt(event.localPosition);
+    final cell = _layout.cellAt(event.localPosition);
     if (cell == null) return;
     controller.tapCell(cell);
   }
@@ -707,7 +386,7 @@ class BoardComponent extends PositionComponent
     if (!controller.canInteract) return;
     _dragStart = event.localPosition;
     _dragLast = _dragStart;
-    _dragStartCell = _cellAt(event.localPosition);
+    _dragStartCell = _layout.cellAt(event.localPosition);
   }
 
   @override
@@ -728,7 +407,7 @@ class BoardComponent extends PositionComponent
     if (start == null || last == null || cell == null) return;
     if (!controller.canInteract) return;
     final delta = last - start;
-    if (delta.length < _cell * 0.26) return;
+    if (delta.length < _layout.cell * 0.26) return;
     final int dCol;
     final int dRow;
     if (delta.x.abs() > delta.y.abs()) {
