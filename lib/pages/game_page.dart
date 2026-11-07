@@ -28,6 +28,7 @@ class GamePage extends StatefulWidget {
 class _GamePageState extends State<GamePage> {
   late final MatchController _controller;
   late final MatchGame _game;
+  late final Widget _boardWidget;
   final ValueNotifier<bool> _darkMode = ValueNotifier(false);
   bool _resultSaved = false;
   bool _shuffleToastShown = false;
@@ -42,6 +43,8 @@ class _GamePageState extends State<GamePage> {
       darkMode: _darkMode,
       logicRate: settings.logicRate,
     );
+    // 保持同一个 Widget 实例，setState 只重建 HUD，不触碰棋盘。
+    _boardWidget = GameWidget(game: _game);
     _controller.addListener(_onControllerChanged);
     LogService.info(
       '进入关卡 ${widget.level.id}（${widget.level.name}），'
@@ -146,9 +149,8 @@ class _GamePageState extends State<GamePage> {
   void _nextLevel() {
     final next = nextLevelOf(widget.level.id);
     if (next == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已经是最后一关啦')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('已经是最后一关啦')));
       return;
     }
     Navigator.of(context).pushReplacement(
@@ -182,7 +184,7 @@ class _GamePageState extends State<GamePage> {
                         compact ? 4 : 10,
                         bottomInset,
                       ),
-                      child: GameWidget(game: _game),
+                      child: RepaintBoundary(child: _boardWidget),
                     ),
                   ),
                   Positioned(
