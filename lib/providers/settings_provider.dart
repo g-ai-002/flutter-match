@@ -13,6 +13,7 @@ import '../services/music_service.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
 import '../theme/skins.dart';
+import '../utils/formatters.dart';
 
 /// 用户偏好：主题、逻辑速率与音效反馈。
 class SettingsProvider extends ChangeNotifier {
@@ -120,6 +121,29 @@ class SettingsProvider extends ChangeNotifier {
 
   int dailyStars(String dateKey) => _storage.dailyStars(dateKey);
   int dailyBestScore(String dateKey) => _storage.dailyBestScore(dateKey);
+
+  /// 每日挑战连续完成天数；断签一天以上不再展示旧连胜。
+  int get dailyStreak {
+    final last = _storage.dailyLastDate;
+    if (last.isEmpty) return 0;
+    final today = formatDateKey(DateTime.now());
+    return last == today || last == shiftDateKey(today, -1)
+        ? _storage.dailyStreak
+        : 0;
+  }
+
+  /// 无尽模式历史最佳层数与累计分。
+  int get endlessBestStage => _storage.endlessBestStage;
+  int get endlessBestScore => _storage.endlessBestScore;
+
+  /// 无尽模式每层通关后记录成绩，历史最佳只增不减。
+  Future<void> recordEndless({
+    required int stage,
+    required int totalScore,
+  }) async {
+    await _storage.recordEndlessResult(stage: stage, score: totalScore);
+    notifyListeners();
+  }
 
   /// 通关结算：发放福币并记录闯关或每日挑战成绩。
   ///

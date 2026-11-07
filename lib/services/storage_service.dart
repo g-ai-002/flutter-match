@@ -6,6 +6,7 @@ import '../game/progress.dart';
 import '../game/props.dart';
 import '../theme/skins.dart';
 import '../utils/constants.dart';
+import '../utils/formatters.dart';
 import 'log_service.dart';
 
 /// 轻量本地存储：偏好设置与关卡进度，写入失败时记录日志并忽略。
@@ -74,6 +75,31 @@ class StorageService {
   int get propsUsed => _p.getInt(AppConstants.statPropsUsed) ?? 0;
   int get dailyClears => _p.getInt(AppConstants.statDailyClears) ?? 0;
 
+  /// 每日挑战连续完成天数。
+  int get dailyStreak => _p.getInt(AppConstants.statDailyStreak) ?? 0;
+
+  /// 最近一次完成每日挑战的日期键，从未完成为空串。
+  String get dailyLastDate =>
+      _p.getString(AppConstants.prefKeyDailyLastDate) ?? '';
+
+  /// 无尽模式历史最佳层数与累计分。
+  int get endlessBestStage =>
+      _p.getInt(AppConstants.prefKeyEndlessBestStage) ?? 0;
+  int get endlessBestScore =>
+      _p.getInt(AppConstants.prefKeyEndlessBestScore) ?? 0;
+
+  /// 记录无尽模式成绩，层数与累计分只增不减。
+  Future<void> recordEndlessResult({required int stage, required int score}) =>
+      _write((p) async {
+        if (stage > endlessBestStage) {
+          await p.setInt(AppConstants.prefKeyEndlessBestStage, stage);
+        }
+        if (score > endlessBestScore) {
+          await p.setInt(AppConstants.prefKeyEndlessBestScore, score);
+        }
+        return true;
+      });
+
   /// 累计一局的成就统计：连锁取最大值，其余累加。
   Future<void> recordStats({
     int maxCombo = 0,
@@ -137,10 +163,14 @@ class StorageService {
     }
     if (stars <= 0 || dailyRewarded(dateKey)) return 0;
     const reward = DailyChallenge.rewardCoins;
+    final lastDate = _p.getString(AppConstants.prefKeyDailyLastDate) ?? '';
+    final streak = lastDate == shiftDateKey(dateKey, -1) ? dailyStreak + 1 : 1;
     await _write((p) async {
       await p.setBool(AppConstants.dailyRewardKey(dateKey), true);
       await p.setInt(AppConstants.prefKeyCoins, coins + reward);
       await p.setInt(AppConstants.statDailyClears, dailyClears + 1);
+      await p.setInt(AppConstants.statDailyStreak, streak);
+      await p.setString(AppConstants.prefKeyDailyLastDate, dateKey);
       return true;
     });
     return reward;
@@ -177,6 +207,9 @@ class StorageService {
 
   Future<void> resetProgress() => _write((p) async {
     await p.remove(AppConstants.prefKeyUnlocked);
+    await p.remove(AppConstants.prefKeyDailyLastDate);
+    await p.remove(AppConstants.prefKeyEndlessBestStage);
+    await p.remove(AppConstants.prefKeyEndlessBestScore);
     for (final key in p.getKeys().toList()) {
       if (key.startsWith('stars_') ||
           key.startsWith('best_') ||

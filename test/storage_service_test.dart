@@ -7,6 +7,7 @@ import 'package:fortune_match/game/scoring.dart';
 import 'package:fortune_match/providers/settings_provider.dart';
 import 'package:fortune_match/services/storage_service.dart';
 import 'package:fortune_match/theme/skins.dart';
+import 'package:fortune_match/utils/formatters.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -243,5 +244,69 @@ void main() {
     expect(storage.skin, AppSkin.celadon);
     await storage.resetProgress();
     expect(storage.skin, AppSkin.celadon, reason: '重置进度不改外观偏好');
+  });
+
+  test('无尽模式成绩只增不减并随重置清理', () async {
+    final storage = await StorageService.instance;
+    expect(storage.endlessBestStage, 0);
+    expect(storage.endlessBestScore, 0);
+
+    await storage.recordEndlessResult(stage: 3, score: 5200);
+    expect(storage.endlessBestStage, 3);
+    expect(storage.endlessBestScore, 5200);
+
+    await storage.recordEndlessResult(stage: 2, score: 9000);
+    expect(storage.endlessBestStage, 3, reason: '层数取历史最高');
+    expect(storage.endlessBestScore, 9000, reason: '累计分取历史最高');
+
+    final settings = SettingsProvider(storage);
+    await settings.recordEndless(stage: 5, totalScore: 12000);
+    expect(settings.endlessBestStage, 5);
+    expect(settings.endlessBestScore, 12000);
+
+    await storage.resetProgress();
+    expect(storage.endlessBestStage, 0);
+    expect(storage.endlessBestScore, 0);
+  });
+
+  test('每日挑战连胜只在连续日期累加，断签重新计数', () async {
+    final storage = await StorageService.instance;
+    expect(storage.dailyStreak, 0);
+
+    await storage.recordDailyResult(dateKey: '20261106', stars: 2, score: 3000);
+    expect(storage.dailyStreak, 1);
+
+    await storage.recordDailyResult(dateKey: '20261107', stars: 3, score: 3300);
+    expect(storage.dailyStreak, 2);
+
+    await storage.recordDailyResult(dateKey: '20261107', stars: 3, score: 3400);
+    expect(storage.dailyStreak, 2, reason: '同一天重复通关不增加连胜');
+
+    await storage.recordDailyResult(dateKey: '20261109', stars: 1, score: 2000);
+    expect(storage.dailyStreak, 1, reason: '跳过一天后重新计数');
+
+    await storage.resetProgress();
+    expect(storage.dailyStreak, 0);
+  });
+
+  test('每日连胜断签一天以上不再展示', () async {
+    final today = formatDateKey(DateTime.now());
+
+    SharedPreferences.setMockInitialValues({
+      'stat_daily_streak': 5,
+      'daily_last_date': shiftDateKey(today, -2),
+    });
+    StorageService.resetForTests();
+    final storage = await StorageService.instance;
+    expect(storage.dailyStreak, 5);
+    expect(SettingsProvider(storage).dailyStreak, 0, reason: '隔天未完成，旧连胜作废');
+
+    SharedPreferences.setMockInitialValues({
+      'stat_daily_streak': 5,
+      'daily_last_date': shiftDateKey(today, -1),
+    });
+    StorageService.resetForTests();
+    final yesterday = SettingsProvider(await StorageService.instance);
+    expect(yesterday.dailyStreak, 5, reason: '昨天完成，今天仍可延续');
   });
 }

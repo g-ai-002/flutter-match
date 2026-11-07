@@ -18,6 +18,7 @@ class HomeStartPanel extends StatelessWidget {
     required this.daily,
     required this.onStart,
     required this.onStartDaily,
+    required this.onStartEndless,
     required this.onOpenLevels,
     required this.onOpenSettings,
     required this.onOpenAchievements,
@@ -27,6 +28,7 @@ class HomeStartPanel extends StatelessWidget {
   final DailyChallenge daily;
   final ValueChanged<Level> onStart;
   final VoidCallback onStartDaily;
+  final VoidCallback onStartEndless;
   final VoidCallback onOpenLevels;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenAchievements;
@@ -55,7 +57,23 @@ class HomeStartPanel extends StatelessWidget {
           daily: daily,
           stars: settings.dailyStars(daily.dateKey),
           bestScore: settings.dailyBestScore(daily.dateKey),
+          streak: settings.dailyStreak,
           onTap: onStartDaily,
+        ),
+        const SizedBox(height: 10),
+        EntryTile(
+          leading: const EntryBadge(
+            icon: Icons.all_inclusive_rounded,
+            accent: appIce,
+          ),
+          title: '无尽模式',
+          subtitle: settings.endlessBestStage > 0
+              ? '最高第 ${settings.endlessBestStage} 层 · 累计 '
+                    '${settings.endlessBestScore} 分'
+              : settings.endlessBestScore > 0
+              ? '最佳累计 ${settings.endlessBestScore} 分'
+              : '逐层递进，看看能连闯多远',
+          onTap: onStartEndless,
         ),
         const SizedBox(height: 12),
         LayoutBuilder(
@@ -140,12 +158,14 @@ class _DailyCard extends StatelessWidget {
     required this.daily,
     required this.stars,
     required this.bestScore,
+    required this.streak,
     required this.onTap,
   });
 
   final DailyChallenge daily;
   final int stars;
   final int bestScore;
+  final int streak;
   final VoidCallback onTap;
 
   @override
@@ -153,6 +173,7 @@ class _DailyCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final done = stars > 0;
+    final prefix = streak > 1 ? '连续 $streak 天 · ' : '';
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
@@ -202,7 +223,9 @@ class _DailyCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      done ? '今日最佳 $bestScore 分' : daily.goalSummary,
+                      done
+                          ? '$prefix今日最佳 $bestScore 分'
+                          : '$prefix${daily.goalSummary}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(

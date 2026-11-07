@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../flame/match_game.dart';
+import '../game/endless.dart';
 import '../game/levels.dart';
 import '../game/match_controller.dart';
 import '../game/scoring.dart';
@@ -19,9 +20,12 @@ import 'widgets/prop_bar.dart';
 import 'widgets/result_overlay.dart';
 
 class GamePage extends StatefulWidget {
-  const GamePage({super.key, required this.level});
+  const GamePage({super.key, required this.level, this.endless});
 
   final Level level;
+
+  /// 无尽模式的本轮进度；闯关与每日挑战为 null。
+  final EndlessRun? endless;
 
   @override
   State<GamePage> createState() => _GamePageState();
@@ -61,8 +65,11 @@ class _GamePageState extends State<GamePage> {
     _boardWidget = GameWidget(game: _game);
     _controller.addListener(_onControllerChanged);
     LogService.info(
-      '进入关卡 ${widget.level.id}（${widget.level.name}），'
-      '步数 ${widget.level.moves}，逻辑 ${_settings.logicRate.hz}Hz',
+      widget.level.isEndless
+          ? '进入无尽模式第 ${widget.level.endlessStage} 层，'
+                '步数 ${widget.level.moves}，逻辑 ${_settings.logicRate.hz}Hz'
+          : '进入关卡 ${widget.level.id}（${widget.level.name}），'
+                '步数 ${widget.level.moves}，逻辑 ${_settings.logicRate.hz}Hz',
     );
   }
 
@@ -101,7 +108,17 @@ class _GamePageState extends State<GamePage> {
     final won = _controller.status == GameStatus.won;
     final before = _unlockedAchievementIds();
     var dailyReward = 0;
-    if (won) {
+    final run = widget.endless;
+    if (run != null) {
+      // 无尽模式按层结算：通关记本层，失手也保留本轮累计分。
+      final total = run.totalScore + _controller.score;
+      final cleared = won ? run.stage : run.stage - 1;
+      await _settings.recordEndless(stage: cleared, totalScore: total);
+      LogService.info(
+        '无尽模式第 ${run.stage} 层${won ? '通关' : '结束'}：'
+        '${_controller.score} 分，累计 $total 分',
+      );
+    } else if (won) {
       dailyReward = await _settings.recordWin(
         level: widget.level,
         stars: _controller.stars,
@@ -190,6 +207,15 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _restart() {
+    if (widget.endless != null) {
+      const run = EndlessRun();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => GamePage(level: run.level, endless: run),
+        ),
+      );
+      return;
+    }
     _controller.restart();
     _endRecorded = false;
     _shuffleToastShown = false;
@@ -197,11 +223,14 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _confirmRestart() {
+    final endless = widget.endless != null;
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('重开本关？'),
-        content: const Text('当前得分与进度将清空，步数恢复为关卡初始值。'),
+        title: Text(endless ? '重新开始挑战？' : '重开本关？'),
+        content: Text(
+          endless ? '累计分数将清空，回到第 1 层重新开始。' : '当前得分与进度将清空，步数恢复为关卡初始值。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -212,7 +241,7 @@ class _GamePageState extends State<GamePage> {
               Navigator.of(context).pop();
               _restart();
             },
-            child: const Text('重开'),
+            child: Text(endless ? '重新开始' : '重开'),
           ),
         ],
       ),
@@ -220,6 +249,10 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _goLevels() {
+    if (widget.endless != null) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(builder: (_) => const LevelSelectPage()),
       (route) => route.isFirst,
@@ -227,6 +260,16 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _nextLevel() {
+    final run = widget.endless;
+    if (run != null) {
+      final next = run.afterWin(_controller.score);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => GamePage(level: next.level, endless: next),
+        ),
+      );
+      return;
+    }
     final next = nextLevelOf(widget.level.id);
     if (next == null) {
       ScaffoldMessenger.of(context)
@@ -250,7 +293,8 @@ class _GamePageState extends State<GamePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final hasNext = nextLevelOf(widget.level.id) != null;
+    final hasNext =
+        widget.endless != null || nextLevelOf(widget.level.id) != null;
 
     return BoardDisplayMode(
       child: Scaffold(
@@ -292,6 +336,10 @@ class _GamePageState extends State<GamePage> {
                         controller: _controller,
                         hasNext: hasNext,
                         daily: widget.level.isDaily,
+                        endless: widget.endless != null,
+                        totalScore:
+                            (widget.endless?.totalScore ?? 0) +
+                            _controller.score,
                         onNext: _nextLevel,
                         onReplay: _restart,
                         onLevels: _goLevels,

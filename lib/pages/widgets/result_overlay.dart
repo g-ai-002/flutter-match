@@ -15,11 +15,17 @@ class ResultOverlay extends StatelessWidget {
     required this.onReplay,
     required this.onLevels,
     this.daily = false,
+    this.endless = false,
+    this.totalScore = 0,
   });
 
   final MatchController controller;
   final bool hasNext;
   final bool daily;
+
+  /// 无尽模式：按钮与文案改为「下一层」，并展示本轮累计分。
+  final bool endless;
+  final int totalScore;
   final VoidCallback onNext;
   final VoidCallback onReplay;
   final VoidCallback onLevels;
@@ -64,7 +70,11 @@ class ResultOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  won
+                  endless
+                      ? (won
+                            ? '本层通过，累计 $totalScore 分，继续往下闯'
+                            : '本轮挑战结束，累计 $totalScore 分')
+                      : won
                       ? (daily
                             ? '今日挑战已完成，明天再来看看新棋局'
                             : (hasNext ? '福运正旺，继续下一关吧' : '全部关卡已通关，福运圆满'))
@@ -108,7 +118,7 @@ class ResultOverlay extends StatelessWidget {
                       Expanded(
                         child: FilledButton(
                           onPressed: onNext,
-                          child: const Text('下一关'),
+                          child: Text(endless ? '下一层' : '下一关'),
                         ),
                       ),
                     ] else if (!won) ...[
@@ -123,7 +133,10 @@ class ResultOverlay extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                TextButton(onPressed: onLevels, child: const Text('返回关卡列表')),
+                TextButton(
+                  onPressed: onLevels,
+                  child: Text(endless ? '返回首页' : '返回关卡列表'),
+                ),
               ],
             ),
           ),

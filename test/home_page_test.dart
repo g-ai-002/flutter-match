@@ -6,6 +6,7 @@ import 'package:fortune_match/services/sound_service.dart';
 import 'package:fortune_match/services/storage_service.dart';
 import 'package:fortune_match/theme/app_theme.dart';
 import 'package:fortune_match/utils/constants.dart';
+import 'package:fortune_match/utils/formatters.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -110,5 +111,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 120));
 
     expect(find.text('每日挑战 · 8 × 8'), findsOneWidget);
+  });
+
+  testWidgets('首页展示无尽模式入口、历史最佳与每日连胜', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'endless_best_stage': 4,
+      'endless_best_score': 8600,
+      'stat_daily_streak': 3,
+      'daily_last_date': formatDateKey(DateTime.now()),
+    });
+    StorageService.resetForTests();
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+    await tester.pump();
+
+    expect(find.text('无尽模式'), findsOneWidget);
+    expect(find.text('最高第 4 层 · 累计 8600 分'), findsOneWidget);
+    expect(find.textContaining('连续 3 天'), findsOneWidget);
+
+    await tester.tap(find.text('无尽模式'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(find.text('无尽模式 · 7 × 7'), findsOneWidget);
+    expect(find.text('第 1 层'), findsOneWidget);
   });
 }

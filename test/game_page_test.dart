@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fortune_match/game/endless.dart';
 import 'package:fortune_match/game/levels.dart';
 import 'package:fortune_match/game/props.dart';
 import 'package:fortune_match/pages/game_page.dart';
@@ -145,5 +146,35 @@ void main() {
     expect(find.text('×1'), findsOneWidget);
     expect(settings.coins, 100 - PropKind.hammer.price);
     expect(settings.propCount(PropKind.hammer), 1);
+  });
+
+  testWidgets('无尽模式对局显示层数标题与当前层目标', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    const run = EndlessRun();
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: SettingsProvider(storage),
+        child: MaterialApp(
+          theme: buildLightTheme(),
+          home: GamePage(level: run.level, endless: run),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('无尽模式 · 7 × 7'), findsOneWidget);
+    expect(find.text('第 1 层'), findsOneWidget);
+    expect(find.text('0/1300'), findsOneWidget);
+
+    await tester.tap(find.text('重开'));
+    await tester.pump();
+    expect(find.text('重新开始挑战？'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pump();
   });
 }

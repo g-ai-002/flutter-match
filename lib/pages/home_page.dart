@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../game/daily_challenge.dart';
+import '../game/endless.dart';
 import '../models/level.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
@@ -21,6 +22,15 @@ class HomePage extends StatelessWidget {
   void _openGame(BuildContext context, Level level) {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => GamePage(level: level)));
+  }
+
+  void _openEndless(BuildContext context) {
+    const run = EndlessRun();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => GamePage(level: run.level, endless: run),
+      ),
+    );
   }
 
   void _openLevels(BuildContext context) {
@@ -124,6 +134,7 @@ class HomePage extends StatelessWidget {
     daily: daily,
     onStart: (level) => _openGame(context, level),
     onStartDaily: () => _openGame(context, daily.level),
+    onStartEndless: () => _openEndless(context),
     onOpenLevels: () => _openLevels(context),
     onOpenSettings: () => _openSettings(context),
     onOpenAchievements: () => _openAchievements(context),

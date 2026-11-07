@@ -54,6 +54,7 @@ class Level {
     this.ice = const {},
     this.dailyKey,
     this.dailySeed,
+    this.endlessStage = 0,
   });
 
   final int id;
@@ -75,12 +76,21 @@ class Level {
   /// 每日挑战的棋盘种子，同一天开局一致。
   final int? dailySeed;
 
+  /// 无尽模式层数；闯关与每日挑战为 0。
+  final int endlessStage;
+
   bool get isDaily => dailyKey != null;
+
+  bool get isEndless => endlessStage > 0;
 
   int get cellCount => cols * rows;
 
   String get sizeLabel => '$cols × $rows';
 
-  /// HUD 首行的关卡标识，每日挑战不显示关卡序号。
-  String get heading => isDaily ? '每日挑战 · $sizeLabel' : '第 $id 关 · $sizeLabel';
+  /// HUD 首行的关卡标识，每日挑战与无尽模式不显示关卡序号。
+  String get heading => isEndless
+      ? '无尽模式 · $sizeLabel'
+      : isDaily
+      ? '每日挑战 · $sizeLabel'
+      : '第 $id 关 · $sizeLabel';
 }
