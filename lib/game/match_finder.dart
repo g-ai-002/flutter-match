@@ -167,4 +167,36 @@ class MatchFinder {
   }
 
   bool get hasMatch => findGroups().isNotEmpty;
+
+  /// 单点连线检测：只扫描 [index] 所在的横排与竖排。
+  ///
+  /// 交换只会影响落子的两格，用它替代整盘重建匹配组，提示扫描与死局
+  /// 检查的分配与耗时都随连线长度而不是棋盘规模增长。
+  bool hasRunAt(int index) {
+    if (index < 0 || index >= board.length) return false;
+    final type = typeAt(index);
+    if (type == null) return false;
+    final col = index % cols;
+    final row = index ~/ cols;
+
+    var left = col;
+    while (left > 0 && typeAt(row * cols + left - 1) == type) {
+      left--;
+    }
+    var right = col;
+    while (right + 1 < cols && typeAt(row * cols + right + 1) == type) {
+      right++;
+    }
+    if (right - left + 1 >= 3) return true;
+
+    var top = row;
+    while (top > 0 && typeAt((top - 1) * cols + col) == type) {
+      top--;
+    }
+    var bottom = row;
+    while (bottom + 1 < rows && typeAt((bottom + 1) * cols + col) == type) {
+      bottom++;
+    }
+    return bottom - top + 1 >= 3;
+  }
 }

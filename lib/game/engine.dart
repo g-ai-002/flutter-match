@@ -373,32 +373,31 @@ class MatchEngine {
   /// 收集所有可消除的相邻交换，供提示按目标优先级挑选。
   List<SwapHint> findHints({int limit = 64}) {
     final hints = <SwapHint>[];
-    for (var row = 0; row < rows; row++) {
-      for (var col = 0; col < cols; col++) {
+    for (var row = 0; row < rows && hints.length < limit; row++) {
+      for (var col = 0; col < cols && hints.length < limit; col++) {
         final a = row * cols + col;
         final ta = board.tiles[a];
         if (ta == null) continue;
-        final neighbors = <int>[
-          if (col + 1 < cols) a + 1,
-          if (row + 1 < rows) a + cols,
-        ];
-        for (final b in neighbors) {
-          final tb = board.tiles[b];
-          if (tb == null) continue;
-          if (ta.special == SpecialType.rainbow ||
-              tb.special == SpecialType.rainbow) {
-            hints.add(SwapHint(a, b));
-          } else {
-            board.swap(a, b);
-            final matched = _finder.hasMatch;
-            board.swap(a, b);
-            if (matched) hints.add(SwapHint(a, b));
-          }
-          if (hints.length >= limit) return hints;
-        }
+        if (col + 1 < cols) _considerSwap(hints, a, a + 1, ta);
+        if (row + 1 < rows) _considerSwap(hints, a, a + cols, ta);
       }
     }
     return hints;
+  }
+
+  /// 试交换一对相邻棋子，只在落子两格附近检查连线。
+  void _considerSwap(List<SwapHint> hints, int a, int b, Tile ta) {
+    final tb = board.tiles[b];
+    if (tb == null) return;
+    if (ta.special == SpecialType.rainbow ||
+        tb.special == SpecialType.rainbow) {
+      hints.add(SwapHint(a, b));
+      return;
+    }
+    board.swap(a, b);
+    final matched = _finder.hasRunAt(a) || _finder.hasRunAt(b);
+    board.swap(a, b);
+    if (matched) hints.add(SwapHint(a, b));
   }
 
   /// 浅层评估一组交换：消除数量、冰面覆盖与棋子类型分布。

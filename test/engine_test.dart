@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' hide MatchFinder;
 import 'package:fortune_match/game/board_step.dart';
 import 'package:fortune_match/game/engine.dart';
 import 'package:fortune_match/models/level.dart';
@@ -225,5 +225,50 @@ void main() {
     expect(engine.findHints(limit: 1), hasLength(1));
     expect(engine.findHints(limit: 2).length, lessThanOrEqualTo(2));
     expect(engine.findHints(), isNotEmpty);
+  });
+
+  test('单点连线检测识别横竖三连与空位', () {
+    final engine = _engineFrom(['A A A B C', 'B C A D E', 'C D A E B']);
+    final finder = MatchFinder(board: engine.board, cols: 5, rows: 3);
+    expect(finder.hasRunAt(0), isTrue);
+    expect(finder.hasRunAt(1), isTrue);
+    expect(finder.hasRunAt(2), isTrue);
+    expect(finder.hasRunAt(7), isTrue);
+    expect(finder.hasRunAt(12), isTrue);
+    expect(finder.hasRunAt(3), isFalse);
+    expect(finder.hasRunAt(99), isFalse);
+
+    engine.board.tiles[1] = null;
+    expect(finder.hasRunAt(0), isFalse);
+    expect(finder.hasRunAt(1), isFalse);
+    // 第 2 列仍是竖排三连。
+    expect(finder.hasRunAt(2), isTrue);
+  });
+
+  test('提示扫描结果与整盘连线判定完全一致', () {
+    final engine = MatchEngine(level: _level(8, 8), seed: 13);
+    final hints = {
+      for (final hint in engine.findHints()) '${hint.a}-${hint.b}',
+    };
+    var playable = 0;
+    for (var row = 0; row < 8; row++) {
+      for (var col = 0; col < 8; col++) {
+        final a = row * 8 + col;
+        final candidates = [if (col + 1 < 8) a + 1, if (row + 1 < 8) a + 8];
+        for (final b in candidates) {
+          engine.board.swap(a, b);
+          final matched = engine.hasImmediateMatch;
+          engine.board.swap(a, b);
+          expect(
+            hints.contains('$a-$b'),
+            matched,
+            reason: '交换 $a 与 $b 的判定应与整盘扫描一致',
+          );
+          if (matched) playable++;
+        }
+      }
+    }
+    expect(playable, hints.length);
+    expect(playable, greaterThan(0));
   });
 }
