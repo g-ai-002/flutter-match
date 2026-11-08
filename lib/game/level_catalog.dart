@@ -1,71 +1,27 @@
 import '../models/level.dart';
 import '../models/tile.dart';
 
-/// 关卡数据表：25 个手工关卡，棋盘规格、步数、目标与冰层由浅入深。
+/// 关卡数据表：50 个手工关卡，分两章推进，棋盘规格、步数、目标与冰层由浅入深。
 ///
 /// 只放数据与排版辅助函数，查询与跳转逻辑放在 `levels.dart`。
 List<Level> buildLevelCatalog() => [
+  const Level(id: 1, name: '初尝福味', cols: 7, rows: 7, moves: 20, palette: 5, goals: [LevelGoal.score(1200)]),
+  const Level(id: 2, name: '灯笼高挂', cols: 7, rows: 7, moves: 20, palette: 5, goals: [LevelGoal.collect(TileType.lantern, 12)]),
   const Level(
-    id: 1,
-    name: '初尝福味',
-    cols: 7,
-    rows: 7,
-    moves: 20,
-    palette: 5,
-    goals: [LevelGoal.score(1200)],
-  ),
-  const Level(
-    id: 2,
-    name: '灯笼高挂',
-    cols: 7,
-    rows: 7,
-    moves: 20,
-    palette: 5,
-    goals: [LevelGoal.collect(TileType.lantern, 12)],
-  ),
-  const Level(
-    id: 3,
-    name: '双喜临门',
-    cols: 8,
-    rows: 8,
-    moves: 22,
-    palette: 5,
+    id: 3, name: '双喜临门', cols: 8, rows: 8, moves: 22, palette: 5,
     goals: [
       LevelGoal.collect(TileType.coin, 10),
       LevelGoal.collect(TileType.jade, 10),
     ],
   ),
+  const Level(id: 4, name: '金玉满堂', cols: 8, rows: 8, moves: 21, goals: [LevelGoal.score(2600)]),
+  Level(id: 5, name: '薄冰初结', cols: 8, rows: 8, moves: 22, goals: const [LevelGoal.ice(7)], ice: _band(8, 3, 4, colStep: 2)),
   const Level(
-    id: 4,
-    name: '金玉满堂',
-    cols: 8,
-    rows: 8,
-    moves: 21,
-    goals: [LevelGoal.score(2600)],
-  ),
-  Level(
-    id: 5,
-    name: '薄冰初结',
-    cols: 8,
-    rows: 8,
-    moves: 22,
-    goals: const [LevelGoal.ice(7)],
-    ice: _band(8, 3, 4, colStep: 2),
-  ),
-  const Level(
-    id: 6,
-    name: '元宝盈门',
-    cols: 8,
-    rows: 8,
-    moves: 20,
+    id: 6, name: '元宝盈门', cols: 8, rows: 8, moves: 20,
     goals: [LevelGoal.collect(TileType.ingot, 14), LevelGoal.score(2000)],
   ),
   Level(
-    id: 7,
-    name: '冰封回廊',
-    cols: 8,
-    rows: 8,
-    moves: 20,
+    id: 7, name: '冰封回廊', cols: 8, rows: 8, moves: 20,
     goals: const [LevelGoal.ice(12)],
     ice: {
       ..._band(8, 2, 2),
@@ -74,30 +30,15 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 8,
-    name: '莲开并蒂',
-    cols: 8,
-    rows: 8,
-    moves: 18,
+    id: 8, name: '莲开并蒂', cols: 8, rows: 8, moves: 18,
     goals: [
       LevelGoal.collect(TileType.lotus, 12),
       LevelGoal.collect(TileType.porcelain, 12),
     ],
   ),
-  const Level(
-    id: 9,
-    name: '九宫纳福',
-    cols: 9,
-    rows: 8,
-    moves: 22,
-    goals: [LevelGoal.score(4000)],
-  ),
+  const Level(id: 9, name: '九宫纳福', cols: 9, rows: 8, moves: 22, goals: [LevelGoal.score(4000)]),
   Level(
-    id: 10,
-    name: '踏雪寻梅',
-    cols: 9,
-    rows: 8,
-    moves: 20,
+    id: 10, name: '踏雪寻梅', cols: 9, rows: 8, moves: 20,
     goals: const [LevelGoal.ice(14), LevelGoal.collect(TileType.coin, 12)],
     ice: {
       ..._band(9, 1, 3, colStep: 2),
@@ -105,39 +46,20 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 11,
-    name: '灯影摇红',
-    cols: 9,
-    rows: 8,
-    moves: 22,
+    id: 11, name: '灯影摇红', cols: 9, rows: 8, moves: 22,
     goals: [
       LevelGoal.collect(TileType.lantern, 16),
       LevelGoal.collect(TileType.jade, 16),
     ],
   ),
   Level(
-    id: 12,
-    name: '冰玉交辉',
-    cols: 9,
-    rows: 8,
-    moves: 24,
+    id: 12, name: '冰玉交辉', cols: 9, rows: 8, moves: 24,
     goals: const [LevelGoal.score(5200), LevelGoal.ice(5)],
     ice: _spots(9, 2, const [(1, 1), (4, 1), (7, 1), (2, 4), (6, 4)]),
   ),
-  const Level(
-    id: 13,
-    name: '聚宝成塔',
-    cols: 8,
-    rows: 8,
-    moves: 18,
-    goals: [LevelGoal.collect(TileType.ingot, 13)],
-  ),
+  const Level(id: 13, name: '聚宝成塔', cols: 8, rows: 8, moves: 18, goals: [LevelGoal.collect(TileType.ingot, 13)]),
   Level(
-    id: 14,
-    name: '春冰初解',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 14, name: '春冰初解', cols: 9, rows: 9, moves: 22,
     goals: const [LevelGoal.ice(16)],
     ice: {
       ..._band(9, 2, 2, offset: 1),
@@ -147,30 +69,15 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 15,
-    name: '瓷莲合璧',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 15, name: '瓷莲合璧', cols: 9, rows: 9, moves: 22,
     goals: [
       LevelGoal.collect(TileType.porcelain, 18),
       LevelGoal.collect(TileType.lotus, 18),
     ],
   ),
-  const Level(
-    id: 16,
-    name: '福满乾坤',
-    cols: 9,
-    rows: 9,
-    moves: 20,
-    goals: [LevelGoal.score(6000)],
-  ),
+  const Level(id: 16, name: '福满乾坤', cols: 9, rows: 9, moves: 20, goals: [LevelGoal.score(6000)]),
   Level(
-    id: 17,
-    name: '铜钱串福',
-    cols: 9,
-    rows: 9,
-    moves: 20,
+    id: 17, name: '铜钱串福', cols: 9, rows: 9, moves: 20,
     goals: const [LevelGoal.collect(TileType.coin, 18), LevelGoal.ice(5)],
     ice: _spots(9, 2, const [
       (0, 2),
@@ -183,22 +90,14 @@ List<Level> buildLevelCatalog() => [
     ]),
   ),
   const Level(
-    id: 18,
-    name: '灯火阑珊',
-    cols: 9,
-    rows: 9,
-    moves: 20,
+    id: 18, name: '灯火阑珊', cols: 9, rows: 9, moves: 20,
     goals: [
       LevelGoal.collect(TileType.jade, 20),
       LevelGoal.collect(TileType.lantern, 20),
     ],
   ),
   Level(
-    id: 19,
-    name: '寒冰深锁',
-    cols: 9,
-    rows: 9,
-    moves: 20,
+    id: 19, name: '寒冰深锁', cols: 9, rows: 9, moves: 20,
     goals: const [LevelGoal.ice(16), LevelGoal.score(4500)],
     ice: {
       ..._band(9, 1, 1),
@@ -207,11 +106,7 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 20,
-    name: '福运大典',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 20, name: '福运大典', cols: 9, rows: 9, moves: 22,
     goals: [
       LevelGoal.collect(TileType.coin, 16),
       LevelGoal.collect(TileType.porcelain, 16),
@@ -221,19 +116,11 @@ List<Level> buildLevelCatalog() => [
   ),
   // 第 21 关起为三目标混排：分数、收集与破冰同时压在同一局里。
   const Level(
-    id: 21,
-    name: '金玉同辉',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 21, name: '金玉同辉', cols: 9, rows: 9, moves: 22,
     goals: [LevelGoal.score(6800), LevelGoal.collect(TileType.ingot, 18)],
   ),
   Level(
-    id: 22,
-    name: '瓷纹冰裂',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 22, name: '瓷纹冰裂', cols: 9, rows: 9, moves: 24,
     goals: const [LevelGoal.collect(TileType.porcelain, 16), LevelGoal.ice(6)],
     ice: _spots(9, 2, const [
       (0, 4),
@@ -247,11 +134,7 @@ List<Level> buildLevelCatalog() => [
     ]),
   ),
   Level(
-    id: 23,
-    name: '梅影重重',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 23, name: '梅影重重', cols: 9, rows: 9, moves: 24,
     goals: const [LevelGoal.score(7200), LevelGoal.ice(10)],
     ice: {
       ..._band(9, 2, 2, colStep: 2),
@@ -260,11 +143,7 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 24,
-    name: '灯玉相映',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 24, name: '灯玉相映', cols: 9, rows: 9, moves: 22,
     goals: [
       LevelGoal.collect(TileType.jade, 20),
       LevelGoal.collect(TileType.lantern, 20),
@@ -272,11 +151,7 @@ List<Level> buildLevelCatalog() => [
     ],
   ),
   Level(
-    id: 25,
-    name: '福运终章',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 25, name: '福运终章', cols: 9, rows: 9, moves: 26,
     goals: const [
       LevelGoal.collect(TileType.coin, 20),
       LevelGoal.ice(12),
@@ -290,19 +165,11 @@ List<Level> buildLevelCatalog() => [
   ),
   // 第 26 关起进入第二章：棋盘固定 9×9，三目标混排成为常态。
   const Level(
-    id: 26,
-    name: '灯月同辉',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 26, name: '灯月同辉', cols: 9, rows: 9, moves: 22,
     goals: [LevelGoal.score(7600), LevelGoal.collect(TileType.lantern, 16)],
   ),
   Level(
-    id: 27,
-    name: '玉阶生凉',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 27, name: '玉阶生凉', cols: 9, rows: 9, moves: 24,
     goals: const [LevelGoal.ice(18), LevelGoal.score(6000)],
     ice: {
       ..._band(9, 2, 3, colStep: 2),
@@ -311,11 +178,7 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   Level(
-    id: 28,
-    name: '冰绡叠翠',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 28, name: '冰绡叠翠', cols: 9, rows: 9, moves: 24,
     goals: const [LevelGoal.collect(TileType.jade, 20), LevelGoal.ice(8)],
     ice: _spots(9, 2, const [
       (1, 1),
@@ -329,19 +192,11 @@ List<Level> buildLevelCatalog() => [
     ]),
   ),
   const Level(
-    id: 29,
-    name: '金舫载福',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 29, name: '金舫载福', cols: 9, rows: 9, moves: 22,
     goals: [LevelGoal.collect(TileType.coin, 22), LevelGoal.score(6500)],
   ),
   Level(
-    id: 30,
-    name: '梅雪争春',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 30, name: '梅雪争春', cols: 9, rows: 9, moves: 24,
     goals: const [LevelGoal.ice(20), LevelGoal.collect(TileType.porcelain, 16)],
     ice: {
       ..._band(9, 0, 1, colStep: 2),
@@ -350,30 +205,18 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 31,
-    name: '琼楼玉宇',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 31, name: '琼楼玉宇', cols: 9, rows: 9, moves: 24,
     goals: [LevelGoal.score(8200), LevelGoal.collect(TileType.ingot, 18)],
   ),
   const Level(
-    id: 32,
-    name: '莲灯照夜',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 32, name: '莲灯照夜', cols: 9, rows: 9, moves: 24,
     goals: [
       LevelGoal.collect(TileType.lotus, 20),
       LevelGoal.collect(TileType.lantern, 20),
     ],
   ),
   Level(
-    id: 33,
-    name: '玲珑冰心',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 33, name: '玲珑冰心', cols: 9, rows: 9, moves: 26,
     goals: const [LevelGoal.ice(24), LevelGoal.collect(TileType.porcelain, 18)],
     ice: {
       ..._band(9, 2, 2),
@@ -383,11 +226,7 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   Level(
-    id: 34,
-    name: '福海无涯',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 34, name: '福海无涯', cols: 9, rows: 9, moves: 24,
     goals: const [LevelGoal.score(8800), LevelGoal.ice(7)],
     ice: _spots(9, 2, const [
       (1, 2),
@@ -400,11 +239,7 @@ List<Level> buildLevelCatalog() => [
     ]),
   ),
   const Level(
-    id: 35,
-    name: '双壁生辉',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 35, name: '双壁生辉', cols: 9, rows: 9, moves: 24,
     goals: [
       LevelGoal.collect(TileType.jade, 20),
       LevelGoal.collect(TileType.porcelain, 20),
@@ -412,19 +247,11 @@ List<Level> buildLevelCatalog() => [
     ],
   ),
   const Level(
-    id: 36,
-    name: '暖阁生香',
-    cols: 9,
-    rows: 9,
-    moves: 22,
+    id: 36, name: '暖阁生香', cols: 9, rows: 9, moves: 22,
     goals: [LevelGoal.collect(TileType.lantern, 24), LevelGoal.score(6200)],
   ),
   Level(
-    id: 37,
-    name: '雪落无声',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 37, name: '雪落无声', cols: 9, rows: 9, moves: 26,
     goals: const [LevelGoal.ice(18), LevelGoal.collect(TileType.coin, 18)],
     ice: {
       ..._band(9, 1, 2, colStep: 2, offset: 1),
@@ -433,30 +260,18 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 38,
-    name: '珠玉在侧',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 38, name: '珠玉在侧', cols: 9, rows: 9, moves: 24,
     goals: [
       LevelGoal.collect(TileType.ingot, 22),
       LevelGoal.collect(TileType.jade, 18),
     ],
   ),
   const Level(
-    id: 39,
-    name: '灯花并蒂',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 39, name: '灯花并蒂', cols: 9, rows: 9, moves: 24,
     goals: [LevelGoal.score(9000), LevelGoal.collect(TileType.lotus, 18)],
   ),
   Level(
-    id: 40,
-    name: '冰弦玉柱',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 40, name: '冰弦玉柱', cols: 9, rows: 9, moves: 26,
     goals: const [LevelGoal.ice(17), LevelGoal.score(7000)],
     ice: {
       ..._band(9, 3, 3, colStep: 2),
@@ -466,11 +281,7 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   Level(
-    id: 41,
-    name: '万象更新',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 41, name: '万象更新', cols: 9, rows: 9, moves: 24,
     goals: const [
       LevelGoal.collect(TileType.coin, 20),
       LevelGoal.collect(TileType.porcelain, 20),
@@ -491,19 +302,11 @@ List<Level> buildLevelCatalog() => [
     ]),
   ),
   const Level(
-    id: 42,
-    name: '烟雨青瓷',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 42, name: '烟雨青瓷', cols: 9, rows: 9, moves: 24,
     goals: [LevelGoal.collect(TileType.porcelain, 24), LevelGoal.score(7500)],
   ),
   Level(
-    id: 43,
-    name: '玉漏声迟',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 43, name: '玉漏声迟', cols: 9, rows: 9, moves: 26,
     goals: const [LevelGoal.ice(21), LevelGoal.collect(TileType.jade, 20)],
     ice: {
       ..._band(9, 0, 0, colStep: 2, offset: 1),
@@ -513,22 +316,14 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 44,
-    name: '金玉满阶',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 44, name: '金玉满阶', cols: 9, rows: 9, moves: 24,
     goals: [
       LevelGoal.collect(TileType.ingot, 24),
       LevelGoal.collect(TileType.coin, 20),
     ],
   ),
   Level(
-    id: 45,
-    name: '冰镜重圆',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 45, name: '冰镜重圆', cols: 9, rows: 9, moves: 26,
     goals: const [LevelGoal.ice(18), LevelGoal.score(8000)],
     ice: {
       ..._band(9, 2, 2, colStep: 2),
@@ -538,22 +333,14 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   const Level(
-    id: 46,
-    name: '莲开九品',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 46, name: '莲开九品', cols: 9, rows: 9, moves: 24,
     goals: [
       LevelGoal.collect(TileType.lotus, 26),
       LevelGoal.collect(TileType.lantern, 20),
     ],
   ),
   Level(
-    id: 47,
-    name: '灯影成双',
-    cols: 9,
-    rows: 9,
-    moves: 24,
+    id: 47, name: '灯影成双', cols: 9, rows: 9, moves: 24,
     goals: const [
       LevelGoal.score(9600),
       LevelGoal.collect(TileType.lantern, 20),
@@ -571,22 +358,14 @@ List<Level> buildLevelCatalog() => [
     ]),
   ),
   const Level(
-    id: 48,
-    name: '翠幕珠帘',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 48, name: '翠幕珠帘', cols: 9, rows: 9, moves: 26,
     goals: [
       LevelGoal.collect(TileType.jade, 26),
       LevelGoal.collect(TileType.porcelain, 22),
     ],
   ),
   Level(
-    id: 49,
-    name: '玉宇澄清',
-    cols: 9,
-    rows: 9,
-    moves: 26,
+    id: 49, name: '玉宇澄清', cols: 9, rows: 9, moves: 26,
     goals: const [LevelGoal.ice(20), LevelGoal.score(8800)],
     ice: {
       ..._band(9, 1, 1, colStep: 2),
@@ -597,11 +376,7 @@ List<Level> buildLevelCatalog() => [
     },
   ),
   Level(
-    id: 50,
-    name: '灯月长明',
-    cols: 9,
-    rows: 9,
-    moves: 28,
+    id: 50, name: '灯月长明', cols: 9, rows: 9, moves: 28,
     goals: const [
       LevelGoal.score(10000),
       LevelGoal.collect(TileType.coin, 22),
