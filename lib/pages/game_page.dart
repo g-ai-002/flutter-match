@@ -82,6 +82,8 @@ class _GamePageState extends State<GamePage> {
   @override
   void dispose() {
     _controller.removeListener(_onControllerChanged);
+    // 先停引擎并拆除棋盘，再释放控制器，离开对局页后不残留计时器与监听。
+    _game.shutdown();
     _controller.dispose();
     _darkMode.dispose();
     super.dispose();
@@ -291,82 +293,79 @@ class _GamePageState extends State<GamePage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasNext =
         widget.endless != null || nextLevelOf(widget.level.id) != null;
 
     return BoardDisplayMode(
+      cols: widget.level.cols,
+      rows: widget.level.rows,
       child: Scaffold(
         body: Container(
           decoration: BoxDecoration(gradient: sceneGradient(isDark)),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxHeight < 560;
-              final topInset = compact ? 74.0 : 94.0;
-              final bottomInset = compact ? 60.0 : 76.0;
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        compact ? 4 : 10,
-                        topInset,
-                        compact ? 4 : 10,
-                        bottomInset,
-                      ),
-                      child: RepaintBoundary(child: _boardWidget),
-                    ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: SafeArea(bottom: false, child: _topHud(compact)),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: SafeArea(top: false, child: _bottomBar(compact)),
-                  ),
-                  if (_resultVisible)
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxHeight < kBoardCompactHeight;
+                // 上下留白对称，棋盘中心与屏幕中心重合；提示与按钮悬浮在留白里。
+                final gap = boardGapFor(constraints.maxHeight);
+                final side = compact ? 6.0 : 10.0;
+                return Stack(
+                  children: [
                     Positioned.fill(
-                      child: ResultOverlay(
-                        controller: _controller,
-                        hasNext: hasNext,
-                        daily: widget.level.isDaily,
-                        endless: widget.endless != null,
-                        totalScore:
-                            (widget.endless?.totalScore ?? 0) +
-                            _controller.score,
-                        onNext: _nextLevel,
-                        onReplay: _restart,
-                        onLevels: _goLevels,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: side,
+                          vertical: gap,
+                        ),
+                        child: RepaintBoundary(child: _boardWidget),
                       ),
                     ),
-                  Positioned(
-                    top: topInset + 4,
-                    left: 0,
-                    right: 0,
-                    child: _promptBar(context),
-                  ),
-                ],
-              );
-            },
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _topHud(compact),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: _bottomBar(compact),
+                    ),
+                    if (_resultVisible)
+                      Positioned.fill(
+                        child: ResultOverlay(
+                          controller: _controller,
+                          hasNext: hasNext,
+                          daily: widget.level.isDaily,
+                          endless: widget.endless != null,
+                          totalScore:
+                              (widget.endless?.totalScore ?? 0) +
+                              _controller.score,
+                          onNext: _nextLevel,
+                          onReplay: _restart,
+                          onLevels: _goLevels,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// 顶部 HUD 只订阅控制器，动画期间不牵动页面骨架与棋盘。
+  /// 顶部信息只订阅控制器，动画期间不牵动页面骨架与棋盘。
   Widget _topHud(bool compact) => AnimatedBuilder(
     animation: _controller,
     builder: (context, _) => GameTopHud(
       level: widget.level,
       controller: _controller,
       compact: compact,
+      prompt: _promptBar,
     ),
   );
 
@@ -383,38 +382,9 @@ class _GamePageState extends State<GamePage> {
     ),
   );
 
-  /// 棋盘上方的悬浮提示；提示消失时缩成空占位，不影响棋盘布局。
-  Widget _promptBar(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final prompt =
-            _propPrompt ??
-            (_controller.hint != null ? '试试交换闪动的两枚棋子' : null);
-        if (!_controller.canInteract || prompt == null) {
-          return const SizedBox.shrink();
-        }
-        return IgnorePointer(
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: colors.surface.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: colors.outline),
-              ),
-              child: Text(
-                prompt,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
+  /// 棋盘上方左侧的操作提示；没有提示时留空，不影响棋盘与目标信息。
+  String? get _promptBar {
+    if (!_controller.canInteract) return null;
+    return _propPrompt ?? (_controller.hint != null ? '试试交换闪动的两枚棋子' : null);
   }
 }

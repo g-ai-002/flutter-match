@@ -6,18 +6,24 @@ import 'goal_chip.dart';
 import 'hud_action_button.dart';
 import 'prop_bar.dart';
 
-/// 对局页顶部 HUD：返回、关卡信息、剩余步数与目标进度。
+/// 对局页顶部悬浮信息：左侧返回、关卡信息与操作提示，右侧目标与步数。
+///
+/// 整块信息悬浮在棋盘上方的留白里，不参与棋盘布局，出现与消失都不会挪动棋盘。
 class GameTopHud extends StatelessWidget {
   const GameTopHud({
     super.key,
     required this.level,
     required this.controller,
     required this.compact,
+    this.prompt,
   });
 
   final Level level;
   final MatchController controller;
   final bool compact;
+
+  /// 道具待命或提示时的操作说明；null 时右侧只显示目标进度。
+  final String? prompt;
 
   @override
   Widget build(BuildContext context) {
@@ -26,11 +32,12 @@ class GameTopHud extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(
         compact ? 8 : 14,
-        compact ? 6 : 8,
+        compact ? 2 : 8,
         compact ? 8 : 14,
         0,
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -46,6 +53,8 @@ class GameTopHud extends StatelessWidget {
                   children: [
                     Text(
                       level.heading,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: colors.onSurfaceVariant,
                         letterSpacing: 0.4,
@@ -60,23 +69,67 @@ class GameTopHud extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               MovesChip(moves: controller.movesLeft),
             ],
           ),
-          SizedBox(height: compact ? 5 : 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (final progress in controller.goalProgress)
-                  GoalChip(progress: progress, compact: true),
-              ],
-            ),
+          SizedBox(height: compact ? 2 : 6),
+          Row(
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _promptChip(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final progress in controller.goalProgress) ...[
+                          GoalChip(progress: progress, compact: true),
+                          const SizedBox(width: 4),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _promptChip(BuildContext context) {
+    final text = prompt;
+    if (text == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        decoration: BoxDecoration(
+          color: colors.surface.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: colors.outline),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        ),
       ),
     );
   }
