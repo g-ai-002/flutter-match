@@ -35,6 +35,10 @@ class TileVisual {
   bool popIn = false;
   double popElapsed = 0;
 
+  /// 交换高亮：即将交换的两枚棋子闪一次金色光圈。
+  bool glowing = false;
+  double glowElapsed = 0;
+
   double get scale {
     if (popIn) {
       final t = (popElapsed / BoardTimings.pop).clamp(0.0, 1.0);

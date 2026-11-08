@@ -9,4 +9,7 @@ class BoardTimings {
   static const double fallPerCell = 0.045;
   static const double fallMax = 0.4;
   static const double spark = 0.42;
+
+  /// 交换双方的金色光圈时长。
+  static const double glow = 0.34;
 }

@@ -7,10 +7,14 @@ import 'package:flutter/material.dart';
 import '../game/match_controller.dart';
 import '../theme/palette.dart';
 import 'board_layout.dart';
+import 'board_timings.dart';
 import 'easing.dart';
 import 'spark.dart';
 import 'tile_sprite_cache.dart';
 import 'tile_visual.dart';
+
+/// 拖拽中的滑动预览：起点格、目标格（-1 表示方向未成形）与拖动幅度。
+typedef SwipePreview = ({int from, int to, double progress});
 
 /// 棋盘绘制：面板底纹、棋子、冰层、选中与提示高亮、消除粒子。
 ///
@@ -40,6 +44,10 @@ class BoardPainter {
   final Paint _ringPaint = Paint()..style = PaintingStyle.stroke;
   final Paint _selectionPaint = Paint();
   final Paint _fadePaint = Paint();
+  final Paint _arrowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
   final Paint _sparkRingPaint = Paint()..style = PaintingStyle.stroke;
   final Paint _sparkDotPaint = Paint();
 
@@ -78,6 +86,7 @@ class BoardPainter {
     required double time,
     bool animated = true,
     int revision = 0,
+    SwipePreview? swipe,
   }) {
     final dark = darkMode.value;
     if (animated) {
@@ -100,7 +109,13 @@ class BoardPainter {
       }
       canvas.drawPicture(_staticFrame!);
     }
-    _paintOverlay(canvas, time: time, sparks: sparks);
+    _paintOverlay(
+      canvas,
+      time: time,
+      sparks: sparks,
+      visuals: visuals,
+      swipe: swipe,
+    );
   }
 
   void dispose() {
@@ -134,14 +149,96 @@ class BoardPainter {
     _paintSelection(canvas);
   }
 
-  /// 覆盖层：提示脉冲与消除粒子，不影响棋盘层的缓存。
+  /// 覆盖层：提示脉冲、滑动预览、交换光圈与消除粒子，不影响棋盘层缓存。
   void _paintOverlay(
     Canvas canvas, {
     required double time,
     required List<Spark> sparks,
+    required List<TileVisual> visuals,
+    required SwipePreview? swipe,
   }) {
     _paintHint(canvas, time);
+    if (swipe != null) _paintSwipe(canvas, swipe, time);
+    _paintSwapGlow(canvas, visuals);
     _paintSparks(canvas, sparks);
+  }
+
+  /// 滑动预览：起点与目标格高亮，并沿滑动方向画出箭头。
+  void _paintSwipe(Canvas canvas, SwipePreview swipe, double time) {
+    final cell = layout.cell;
+    final pulse = 0.5 + 0.5 * math.sin(time * 10);
+    final color = Color.lerp(appGoldBright, appRedBright, pulse)!;
+    _paintRing(
+      canvas,
+      layout.cellRect(swipe.from),
+      color,
+      width: cell * 0.045,
+      inset: cell * 0.02,
+    );
+    if (swipe.to < 0) return;
+    final target = layout.cellRect(swipe.to);
+    _paintRing(
+      canvas,
+      target,
+      color,
+      width: cell * (0.04 + 0.035 * pulse),
+      inset: cell * 0.04,
+    );
+    _selectionPaint.color = color.withValues(alpha: 0.1 + 0.12 * pulse);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        target.deflate(cell * 0.08),
+        Radius.circular(cell * 0.24),
+      ),
+      _selectionPaint,
+    );
+    _paintArrow(canvas, swipe, color);
+  }
+
+  /// 起点到目标的箭头：拖动越远越靠向目标格，方向一目了然。
+  void _paintArrow(Canvas canvas, SwipePreview swipe, Color color) {
+    final cell = layout.cell;
+    final start = layout.cellCenter(swipe.from);
+    final end = layout.cellCenter(swipe.to);
+    final dir = (end - start) / cell;
+    final normal = Offset(-dir.dy, dir.dx);
+    final tip = Offset.lerp(start, end, 0.34 + 0.5 * swipe.progress.clamp(0, 1))!;
+    final back = tip - dir * cell * 0.2;
+    final side = cell * 0.15;
+    _arrowPaint
+      ..color = color
+      ..strokeWidth = cell * 0.09;
+    canvas.drawPath(
+      Path()
+        ..moveTo(back.dx + normal.dx * side, back.dy + normal.dy * side)
+        ..lineTo(tip.dx, tip.dy)
+        ..lineTo(back.dx - normal.dx * side, back.dy - normal.dy * side),
+      _arrowPaint,
+    );
+  }
+
+  /// 交换光圈：从亮到暗收束，明确指出哪两枚棋子正在交换。
+  void _paintSwapGlow(Canvas canvas, List<TileVisual> visuals) {
+    final cell = layout.cell;
+    for (final visual in visuals) {
+      if (!visual.glowing) continue;
+      final fade = 1 - (visual.glowElapsed / BoardTimings.glow).clamp(0.0, 1.0);
+      final rect = Rect.fromCenter(
+        center: Offset(
+          layout.left + (visual.col + 0.5) * cell,
+          layout.top + (visual.row + 0.5) * cell,
+        ),
+        width: cell,
+        height: cell,
+      );
+      _paintRing(
+        canvas,
+        rect,
+        appGoldBright,
+        width: cell * 0.08 * fade,
+        inset: cell * 0.03,
+      );
+    }
   }
 
   /// 底板与棋盘格是静态图案，按格子尺寸和主题缓存为一张 Picture。
@@ -368,12 +465,29 @@ class BoardPainter {
   void _paintSelection(Canvas canvas) {
     final selected = controller.selected;
     if (selected < 0) return;
+    final cell = layout.cell;
+    final col = selected % layout.cols;
+    final row = selected ~/ layout.cols;
+    // 四邻格浅色描边，提示哪些棋子可以直接换。
+    _selectionPaint.color = appGoldLight.withValues(alpha: 0.16);
+    for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
+      final c = col + dc;
+      final r = row + dr;
+      if (c < 0 || c >= layout.cols || r < 0 || r >= layout.rows) continue;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          layout.cellRect(r * layout.cols + c).deflate(cell * 0.1),
+          Radius.circular(cell * 0.22),
+        ),
+        _selectionPaint,
+      );
+    }
     _paintRing(
       canvas,
       layout.cellRect(selected),
       appGoldLight,
-      width: layout.cell * 0.055,
-      inset: layout.cell * 0.02,
+      width: cell * 0.055,
+      inset: cell * 0.02,
     );
   }
 

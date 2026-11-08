@@ -80,8 +80,12 @@ class BoardComponent extends PositionComponent
   async.Timer? _warmupWake;
 
   Vector2? _dragStart;
-  Vector2? _dragLast;
   int? _dragStartCell;
+
+  /// 拖拽中的目标格与幅度：负目标表示方向尚未成形，只高亮起点。
+  int _swipeTo = -1;
+  double _swipeProgress = 0;
+  bool _dragCancelled = false;
 
   int get _cols => controller.level.cols;
   int get _rows => controller.level.rows;
@@ -124,6 +128,7 @@ class BoardComponent extends PositionComponent
     _warmupWake = null;
     onActivityChanged = null;
     controller.removeListener(_onControllerChanged);
+    _clearSwipe();
     _sprites.dispose();
     _painter.dispose();
     _visuals.clear();
@@ -152,11 +157,12 @@ class BoardComponent extends PositionComponent
     _notifyActivity();
   }
 
-  /// 是否还需要继续逐帧推进：动画、粒子、提示脉冲、启动预热或待刷新画面。
+  /// 是否还需要继续逐帧推进：动画、粒子、提示脉冲、拖拽预览、启动预热或待刷新画面。
   bool get needsFrames =>
       _dirtyFrame ||
       _running ||
       _visualsAnimating ||
+      _dragStartCell != null ||
       _sparks.isNotEmpty ||
       controller.hint != null ||
       _needsWarmup;
@@ -231,6 +237,12 @@ class BoardComponent extends PositionComponent
     }
     _tweenTo(first, step.b, BoardTimings.swap);
     _tweenTo(second, step.a, BoardTimings.swap);
+    // 交换双方先亮一次金色光圈，明确指出哪两枚棋子在换位。
+    for (final visual in [first, second]) {
+      visual
+        ..glowing = true
+        ..glowElapsed = 0;
+    }
   }
 
   void _startClear(ClearStep step) {
@@ -481,6 +493,14 @@ class BoardComponent extends PositionComponent
           animating = true;
         }
       }
+      if (visual.glowing) {
+        visual.glowElapsed += span;
+        if (visual.glowElapsed >= BoardTimings.glow) {
+          visual.glowing = false;
+        } else {
+          animating = true;
+        }
+      }
     }
     _visuals.removeWhere(
       (visual) => visual.dying && visual.dieElapsed >= BoardTimings.clear,
@@ -522,6 +542,7 @@ class BoardComponent extends PositionComponent
   void render(Canvas canvas) {
     super.render(canvas);
     _layout.fit(size);
+    final from = _dragStartCell;
     _painter.paint(
       canvas,
       visuals: _visuals,
@@ -529,6 +550,9 @@ class BoardComponent extends PositionComponent
       time: _time,
       animated: _boardAnimating,
       revision: _frameRevision,
+      swipe: from == null
+          ? null
+          : (from: from, to: _swipeTo, progress: _swipeProgress),
     );
   }
 
@@ -544,42 +568,66 @@ class BoardComponent extends PositionComponent
   void onDragStart(DragStartEvent event) {
     super.onDragStart(event);
     if (!controller.canInteract) return;
+    final cell = _layout.cellAt(event.localPosition);
+    if (cell == null) return;
     _dragStart = event.localPosition;
-    _dragLast = _dragStart;
-    _dragStartCell = _layout.cellAt(event.localPosition);
+    _dragStartCell = cell;
+    _swipeTo = -1;
+    _swipeProgress = 0;
+    _dragCancelled = false;
+    _dirtyFrame = true;
+    _notifyActivity();
   }
 
   @override
   void onDragUpdate(DragUpdateEvent event) {
     super.onDragUpdate(event);
-    _dragLast = event.localEndPosition;
+    final start = _dragStart;
+    if (start == null) return;
+    final delta = event.localEndPosition - start;
+    _swipeTo = swipeTarget(_dragStartCell!, delta);
+    _swipeProgress = (delta.length / _layout.cell).clamp(0.0, 1.0);
+    _dirtyFrame = true;
+    _notifyActivity();
   }
 
   @override
   void onDragEnd(DragEndEvent event) {
     super.onDragEnd(event);
-    final start = _dragStart;
-    final last = _dragLast ?? start;
-    final cell = _dragStartCell;
+    final from = _dragStartCell;
+    final to = _swipeTo;
+    final cancelled = _dragCancelled;
+    _dragCancelled = false;
+    _clearSwipe();
+    if (cancelled || from == null || to < 0 || !controller.canInteract) return;
+    controller.swipe(from, to);
+  }
+
+  @override
+  void onDragCancel(DragCancelEvent event) {
+    // Flame 默认把取消转成 DragEnd，先标记避免取消也落子。
+    _dragCancelled = true;
+    super.onDragCancel(event);
+  }
+
+  /// 按拖动位移判断滑动方向，返回目标格；幅度不足或越界返回 -1。
+  @visibleForTesting
+  int swipeTarget(int from, Vector2 delta) {
+    if (delta.length < _layout.cell * 0.22) return -1;
+    final horizontal = delta.x.abs() > delta.y.abs();
+    final col = from % _cols + (horizontal ? (delta.x > 0 ? 1 : -1) : 0);
+    final row = from ~/ _cols + (horizontal ? 0 : (delta.y > 0 ? 1 : -1));
+    if (col < 0 || col >= _cols || row < 0 || row >= _rows) return -1;
+    return row * _cols + col;
+  }
+
+  /// 清空拖拽预览，并让引擎按需补画一帧或停掉循环。
+  void _clearSwipe() {
     _dragStart = null;
-    _dragLast = null;
     _dragStartCell = null;
-    if (start == null || last == null || cell == null) return;
-    if (!controller.canInteract) return;
-    final delta = last - start;
-    if (delta.length < _layout.cell * 0.26) return;
-    final int dCol;
-    final int dRow;
-    if (delta.x.abs() > delta.y.abs()) {
-      dCol = delta.x > 0 ? 1 : -1;
-      dRow = 0;
-    } else {
-      dCol = 0;
-      dRow = delta.y > 0 ? 1 : -1;
-    }
-    final col = cell % _cols + dCol;
-    final row = cell ~/ _cols + dRow;
-    if (col < 0 || col >= _cols || row < 0 || row >= _rows) return;
-    controller.swipe(cell, row * _cols + col);
+    _swipeTo = -1;
+    _swipeProgress = 0;
+    _dirtyFrame = true;
+    _notifyActivity();
   }
 }
