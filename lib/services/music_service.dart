@@ -14,7 +14,10 @@ import 'tone_synth.dart';
 class MusicService {
   MusicService._();
 
-  static const double _volume = 0.2;
+  /// 背景音乐压低到更低档，给音效让出中高频。
+  static const double _volume = 0.16;
+  static const double _duckVolume = 0.05;
+  static const Duration _duckHold = Duration(milliseconds: 260);
 
   static bool enabled = true;
 
@@ -25,6 +28,7 @@ class MusicService {
   static AudioSource? _source;
   static SoundHandle? _handle;
   static Future<void>? _starting;
+  static Timer? _duckTimer;
   static bool _failed = false;
   static bool _suspended = false;
 
@@ -101,6 +105,8 @@ class MusicService {
 
   static void pauseForLifecycle() {
     _suspended = true;
+    _duckTimer?.cancel();
+    _duckTimer = null;
     final handle = _handle;
     if (handle == null || !SoLoud.instance.isInitialized) return;
     try {
@@ -119,6 +125,8 @@ class MusicService {
         SoLoud.instance.getIsValidVoiceHandle(handle)) {
       try {
         SoLoud.instance.setPause(handle, false);
+        // 切后台时可能正处在闪避期，回到前台先恢复常规音量。
+        _applyVolume(_volume);
         return;
       } catch (_) {
         // 句柄失效时退回重新播放。
@@ -127,7 +135,31 @@ class MusicService {
     unawaited(start());
   }
 
+  /// 音效播放时短暂压低背景音乐，播放器未就绪时静默跳过。
+  static void duck() {
+    if (!enabled || _suspended) return;
+    if (!_applyVolume(_duckVolume)) return;
+    _duckTimer?.cancel();
+    _duckTimer = Timer(_duckHold, () {
+      _duckTimer = null;
+      _applyVolume(_volume);
+    });
+  }
+
+  static bool _applyVolume(double volume) {
+    final handle = _handle;
+    if (handle == null || !SoLoud.instance.isInitialized) return false;
+    try {
+      SoLoud.instance.setVolume(handle, volume);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> _stop() async {
+    _duckTimer?.cancel();
+    _duckTimer = null;
     final handle = _handle;
     _handle = null;
     if (handle == null) return;
@@ -145,6 +177,8 @@ class MusicService {
     _source = null;
     _handle = null;
     _starting = null;
+    _duckTimer?.cancel();
+    _duckTimer = null;
     _failed = false;
     _suspended = false;
   }

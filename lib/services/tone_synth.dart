@@ -80,7 +80,22 @@ Uint8List synthesizeWav(
     }
   }
 
-  return _encodePcm(mix, sampleRate);
+  return _encodePcm(_normalize(mix, 0.92), sampleRate);
+}
+
+/// 峰值归一化：配方里的增益只决定相对强弱，统一拉到固定峰值后音效才听得清。
+Float64List _normalize(Float64List mix, double peak) {
+  var loudest = 0.0;
+  for (final value in mix) {
+    final magnitude = value.abs();
+    if (magnitude > loudest) loudest = magnitude;
+  }
+  if (loudest <= 0) return mix;
+  final scale = peak / loudest;
+  for (var i = 0; i < mix.length; i++) {
+    mix[i] *= scale;
+  }
+  return mix;
 }
 
 /// 背景音乐采样率与循环长度：五声音阶拨弦，16 秒一循环。

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
 import 'log_service.dart';
+import 'music_service.dart';
 import 'synth_worker.dart';
 import 'tone_synth.dart';
 
@@ -235,7 +236,9 @@ class SoundService {
       if (source == null) return;
       final soloud = SoLoud.instance;
       soloud.stopAudioSource(source);
+      // 合成时已做峰值归一化，按满档播放才能听清；播放期间压低背景音乐。
       soloud.play(source);
+      MusicService.duck();
     } catch (error) {
       debugPrint('[SoundService] 播放失败: $error');
     }
