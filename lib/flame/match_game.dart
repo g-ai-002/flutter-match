@@ -28,6 +28,10 @@ class MatchGame extends FlameGame {
   @visibleForTesting
   bool get idlePaused => _idlePaused;
 
+  /// 当前挂载的棋盘；拆除后为 null，供测试断言离场清理。
+  @visibleForTesting
+  BoardComponent? get board => _board;
+
   @override
   Color backgroundColor() => Colors.transparent;
 
@@ -42,6 +46,19 @@ class MatchGame extends FlameGame {
     _board = board;
     _fit(board);
     await add(board);
+  }
+
+  @override
+  void onRemove() {
+    shutdown();
+    super.onRemove();
+  }
+
+  /// 停止引擎循环并拆除棋盘：离开对局页时调用，避免残留 ticker、定时器与监听。
+  void shutdown() {
+    pauseEngine();
+    _board?.teardown();
+    _board = null;
   }
 
   @override

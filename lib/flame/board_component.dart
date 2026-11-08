@@ -108,13 +108,34 @@ class BoardComponent extends PositionComponent
 
   @override
   void onRemove() {
+    teardown();
+    super.onRemove();
+  }
+
+  bool _torndown = false;
+
+  /// 拆除棋盘：取消预热定时器、移除控制器监听并释放贴图与绘制缓存。
+  ///
+  /// 离开对局页与组件销毁都会调用，可重复执行，保证不残留后台任务。
+  void teardown() {
+    if (_torndown) return;
+    _torndown = true;
     _warmupWake?.cancel();
     _warmupWake = null;
+    onActivityChanged = null;
     controller.removeListener(_onControllerChanged);
     _sprites.dispose();
     _painter.dispose();
-    super.onRemove();
+    _visuals.clear();
+    _sparks.clear();
+    _steps = const [];
+    _running = false;
+    _stepIndex = 0;
   }
+
+  /// 是否已拆除，供测试断言离场清理。
+  @visibleForTesting
+  bool get torndown => _torndown;
 
   void _onControllerChanged() {
     if (isRemoved) return;
