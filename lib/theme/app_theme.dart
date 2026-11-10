@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/tile.dart';
+import '../utils/system_ui.dart';
 import 'skins.dart';
 import 'tile_art.dart';
 
@@ -104,6 +105,7 @@ ThemeData _buildBase({
       scrolledUnderElevation: 0,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
+      systemOverlayStyle: systemOverlayStyleFor(scaffoldColor),
       toolbarHeight: 52,
       titleTextStyle: TextStyle(
         fontSize: 17,
