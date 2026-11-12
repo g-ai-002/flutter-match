@@ -1,7 +1,7 @@
 name: fortune_match
 description: 福运消消乐 - 国风三消闯关游戏，覆盖 Android、Windows 与 Web
 publish_to: 'none'
-version: 0.4.2
+version: 0.4.3
 
 environment:
   sdk: '>=3.13.7 <4.0.0'
