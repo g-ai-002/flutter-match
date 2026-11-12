@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -59,5 +60,46 @@ void main() {
         reason: '${kind.name} 应归一化到固定峰值',
       );
     }
+  });
+
+  test('并发初始化只加载一次音效', () async {
+    var loads = 0;
+    final gate = Completer<void>();
+    SoundService.debugLoader = () async {
+      loads++;
+      await gate.future;
+    };
+
+    final first = SoundService.init();
+    final second = SoundService.init();
+    expect(loads, 1);
+
+    gate.complete();
+    await Future.wait([first, second]);
+    expect(loads, 1);
+  });
+
+  test('加载失败后冷却结束自动重试，成功后不再重复加载', () async {
+    var loads = 0;
+    var fail = true;
+    SoundService.debugLoader = () async {
+      loads++;
+      if (fail) throw StateError('播放器暂不可用');
+    };
+
+    await SoundService.init();
+    expect(loads, 1);
+
+    // 冷却期内不重复尝试，避免每次操作都卡在初始化的失败路径上。
+    await SoundService.init();
+    expect(loads, 1);
+
+    fail = false;
+    SoundService.retryCooldown = Duration.zero;
+    await SoundService.init();
+    expect(loads, 2);
+
+    await SoundService.init();
+    expect(loads, 2);
   });
 }

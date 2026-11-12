@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
+import 'audio_engine.dart';
 import 'log_service.dart';
 import 'music_service.dart';
 import 'synth_worker.dart';
@@ -39,8 +40,20 @@ class SoundService {
 
   static final Map<FeedbackKind, AudioSource> _sources = {};
   static final Map<FeedbackKind, Uint8List> _clips = {};
+  static final Set<FeedbackKind> _failedKinds = {};
   static Future<void>? _loading;
-  static bool _loadFailed = false;
+  static bool _loaded = false;
+  static bool _loadFailureLogged = false;
+
+  /// 加载失败后的重试间隔，避免每次操作都重复初始化播放器。
+  @visibleForTesting
+  static Duration retryCooldown = const Duration(seconds: 5);
+
+  /// 测试注入的加载动作，非空时不再触碰平台播放器。
+  @visibleForTesting
+  static Future<void> Function()? debugLoader;
+
+  static DateTime? _lastFailure;
 
   /// 各反馈的乐音配方：三消轻快，连锁上行，破冰带噪声。
   static const Map<FeedbackKind, List<SynthNote>> _presets = {
@@ -165,27 +178,63 @@ class SoundService {
   /// 预合成音效并载入 SoLoud 音源；失败时保持静默，不影响游戏。
   static Future<void> init() => _ensureLoaded();
 
+  /// 用户首次操作后重试加载，用于绕过 Web 的自动播放限制。
+  static void retryOnInteraction() {
+    unawaited(_ensureLoaded());
+  }
+
   static Future<void> _ensureLoaded() {
-    if (_loadFailed || _sources.isNotEmpty) return Future.value();
-    return _loading ??= _load();
+    if (_loaded) return Future.value();
+    final loading = _loading;
+    if (loading != null) return loading;
+    final lastFailure = _lastFailure;
+    if (lastFailure != null &&
+        DateTime.now().difference(lastFailure) < retryCooldown) {
+      return Future.value();
+    }
+    final future = _loadWithReset();
+    _loading = future;
+    return future;
+  }
+
+  static Future<void> _loadWithReset() async {
+    try {
+      await _load();
+    } finally {
+      _loading = null;
+    }
   }
 
   static Future<void> _load() async {
     try {
-      final soloud = SoLoud.instance;
-      if (!soloud.isInitialized) await soloud.init();
-      final clips = await runSynthTask(_synthesizeAll);
-      for (final entry in clips.entries) {
-        _sources[entry.key] = await soloud.loadMem(
-          'fortune-${entry.key.name}.wav',
-          entry.value,
-        );
+      final loader = debugLoader;
+      if (loader != null) {
+        await loader();
+      } else {
+        // 与背景音乐共用一个引擎，重复初始化会销毁已加载的音源。
+        await AudioEngine.ensureReady();
+        final clips = await runSynthTask(_synthesizeAll);
+        final soloud = SoLoud.instance;
+        for (final entry in clips.entries) {
+          _sources[entry.key] = await soloud.loadMem(
+            'fortune-${entry.key.name}.wav',
+            entry.value,
+          );
+        }
       }
+      _loaded = true;
+      _lastFailure = null;
+      _loadFailureLogged = false;
+      _failedKinds.clear();
     } catch (error) {
-      _loadFailed = true;
+      _lastFailure = DateTime.now();
       _disposeAll();
-      debugPrint('[SoundService] 音效初始化失败，已静音: $error');
-      LogService.warning('音效初始化失败，已静音: $error');
+      debugPrint('[SoundService] 音效初始化失败，稍后重试: $error');
+      // 反复重试时不再重复写日志，只保留首次失败原因。
+      if (!_loadFailureLogged) {
+        _loadFailureLogged = true;
+        LogService.warning('音效初始化失败，稍后自动重试: $error');
+      }
     }
   }
 
@@ -240,7 +289,15 @@ class SoundService {
       soloud.play(source);
       MusicService.duck();
     } catch (error) {
+      // 引擎被重建或音源失效时丢弃缓存，下次播放重新加载音源。
+      AudioEngine.markLost();
+      _loaded = false;
+      _lastFailure = DateTime.now();
+      _disposeAll();
       debugPrint('[SoundService] 播放失败: $error');
+      if (_failedKinds.add(kind)) {
+        LogService.warning('音效播放失败 ${kind.name}: $error');
+      }
     }
   }
 
@@ -265,8 +322,13 @@ class SoundService {
     sink = null;
     _disposeAll();
     _clips.clear();
+    _failedKinds.clear();
     _loading = null;
-    _loadFailed = false;
+    _loaded = false;
+    _loadFailureLogged = false;
+    _lastFailure = null;
+    retryCooldown = const Duration(seconds: 5);
+    debugLoader = null;
     soundEnabled = true;
     hapticsEnabled = true;
   }

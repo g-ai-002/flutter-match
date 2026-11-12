@@ -31,9 +31,10 @@ class _FortuneMatchAppState extends State<FortuneMatchApp>
     WidgetsBinding.instance.addObserver(this);
     // 首帧之后再合成音频，音效与音乐都不占用启动时间。
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Web 需要用户手势才能初始化音频，首次点击页面时再启动。
+      if (kIsWeb) return;
       unawaited(SoundService.init());
-      // Web 需要用户手势才能播放，首次点击页面时由 App 的监听器启动。
-      if (!kIsWeb) unawaited(MusicService.start());
+      unawaited(MusicService.start());
     });
   }
 
@@ -90,7 +91,10 @@ class _FortuneMatchAppState extends State<FortuneMatchApp>
               child: Listener(
                 behavior: HitTestBehavior.translucent,
                 onPointerDown: kIsWeb
-                    ? (_) => MusicService.retryOnInteraction()
+                    ? (_) {
+                        SoundService.retryOnInteraction();
+                        MusicService.retryOnInteraction();
+                      }
                     : null,
                 child: child ?? const SizedBox.shrink(),
               ),

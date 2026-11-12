@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
+import 'audio_engine.dart';
 import 'log_service.dart';
 import 'synth_worker.dart';
 import 'tone_synth.dart';
@@ -58,11 +59,11 @@ class MusicService {
 
   static Future<void> _start() async {
     try {
-      final soloud = SoLoud.instance;
-      if (!soloud.isInitialized) await soloud.init();
+      // 与音效共用一个引擎，重复初始化会销毁已加载的音源。
+      await AudioEngine.ensureReady();
       if (_source == null) {
         final bytes = await runSynthTask(() => synthesizeMusicWav());
-        _source = await soloud.loadMem('fortune-bgm.wav', bytes);
+        _source = await SoLoud.instance.loadMem('fortune-bgm.wav', bytes);
       }
     } catch (error) {
       _failed = true;
