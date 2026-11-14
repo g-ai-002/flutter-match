@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 玩法说明弹窗：交换、连锁、特殊棋子与目标。
 Future<void> showRulesDialog(BuildContext context) {

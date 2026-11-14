@@ -1,6 +1,6 @@
 import 'dart:ui' show Picture, PictureRecorder;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../models/tile.dart';
 import '../theme/tile_art.dart';

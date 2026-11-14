@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 设置页与首页等信息卡片的统一容器。
 class SectionCard extends StatelessWidget {

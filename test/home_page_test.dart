@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/pages/home_page.dart';
 import 'package:fortune_match/providers/settings_provider.dart';
@@ -7,6 +6,7 @@ import 'package:fortune_match/services/storage_service.dart';
 import 'package:fortune_match/theme/app_theme.dart';
 import 'package:fortune_match/utils/constants.dart';
 import 'package:fortune_match/utils/formatters.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

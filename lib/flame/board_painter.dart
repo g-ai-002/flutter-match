@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show Picture, PictureRecorder;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../game/match_controller.dart';
 import '../theme/palette.dart';

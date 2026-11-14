@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/utils/immersive_landscape.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   const phone = Size(360, 800);
