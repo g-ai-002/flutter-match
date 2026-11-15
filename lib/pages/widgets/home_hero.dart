@@ -6,7 +6,10 @@ import '../../utils/constants.dart';
 
 /// 首页主视觉：扇形陈列的棋子 + 品牌标题与装饰行。
 class HomeHero extends StatelessWidget {
-  const HomeHero({super.key});
+  const HomeHero({super.key, this.compact = false});
+
+  /// 窄屏手机压缩品牌区高度，让主行动区能与整页一起在屏幕内居中。
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -14,18 +17,18 @@ class HomeHero extends StatelessWidget {
     final colors = theme.colorScheme;
     return Column(
       children: [
-        const _TileFan(),
-        const SizedBox(height: 18),
+        _TileFan(height: compact ? 74 : 92),
+        SizedBox(height: compact ? 10 : 18),
         Text(
           AppConstants.appName,
           textAlign: TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
-            fontSize: 40,
-            letterSpacing: 8,
+            fontSize: compact ? 33 : 40,
+            letterSpacing: compact ? 6 : 8,
             color: colors.onSurface,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: compact ? 8 : 10),
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Row(
@@ -46,7 +49,7 @@ class HomeHero extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 8 : 12),
         Text(
           '交换相邻棋子，连成三枚即可消除',
           style: theme.textTheme.bodySmall?.copyWith(
@@ -60,7 +63,9 @@ class HomeHero extends StatelessWidget {
 
 /// 五枚棋子的扇形陈列，作为首页主视觉。
 class _TileFan extends StatelessWidget {
-  const _TileFan();
+  const _TileFan({required this.height});
+
+  final double height;
 
   static const List<(TileType, double, double)> _layout = [
     (TileType.lantern, 44, -0.13),
@@ -73,7 +78,7 @@ class _TileFan extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 92,
+      height: height,
       child: Stack(
         alignment: Alignment.center,
         children: [

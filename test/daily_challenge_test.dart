@@ -45,6 +45,17 @@ void main() {
     expect(seeds, hasLength(10));
   });
 
+  test('同一天的每日挑战只生成一次，跨天再重新推算', () {
+    final first = DailyChallenge.of(DateTime(2026, 11, 8, 7));
+    final again = DailyChallenge.of(DateTime(2026, 11, 8, 21));
+    expect(identical(again, first), isTrue, reason: '首页重建不应反复推算随机布局');
+
+    final next = DailyChallenge.of(DateTime(2026, 11, 9, 7));
+    expect(next.dateKey, '20261109');
+    expect(identical(next, first), isFalse);
+    expect(next.seed, isNot(first.seed));
+  });
+
   test('连续 90 天的每日挑战配置合法', () {
     var date = DateTime(2025, 12, 31);
     for (var offset = 0; offset < 90; offset++) {

@@ -22,6 +22,7 @@ class HomeStartPanel extends StatelessWidget {
     required this.onOpenLevels,
     required this.onOpenSettings,
     required this.onOpenAchievements,
+    this.compact = false,
   });
 
   final SettingsProvider settings;
@@ -33,6 +34,9 @@ class HomeStartPanel extends StatelessWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenAchievements;
 
+  /// 窄屏手机收紧卡片留白，整页才能在屏幕内垂直居中。
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -42,6 +46,11 @@ class HomeStartPanel extends StatelessWidget {
     final level = levelById(unlocked);
     final bestStars = progress.starsOf(level.id);
     final maxStars = progress.maxStars;
+    final gap = compact ? 8.0 : 10.0;
+    final tilePadding = EdgeInsets.symmetric(
+      horizontal: compact ? 16 : 18,
+      vertical: compact ? 12 : 16,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -50,22 +59,25 @@ class HomeStartPanel extends StatelessWidget {
           level: level,
           unlocked: unlocked,
           stars: bestStars,
+          compact: compact,
           onTap: () => onStart(level),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: gap),
         _DailyCard(
           daily: daily,
           stars: settings.dailyStars(daily.dateKey),
           bestScore: settings.dailyBestScore(daily.dateKey),
           streak: settings.dailyStreak,
+          compact: compact,
           onTap: onStartDaily,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: gap),
         EntryTile(
           leading: const EntryBadge(
             icon: Icons.all_inclusive_rounded,
             accent: appIce,
           ),
+          padding: tilePadding,
           title: '无尽模式',
           subtitle: settings.endlessBestStage > 0
               ? '最高第 ${settings.endlessBestStage} 层 · 累计 '
@@ -75,7 +87,7 @@ class HomeStartPanel extends StatelessWidget {
               : '逐层递进，看看能连闯多远',
           onTap: onStartEndless,
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 10 : 12),
         LayoutBuilder(
           builder: (context, constraints) {
             final levels = EntryTile(
@@ -83,6 +95,7 @@ class HomeStartPanel extends StatelessWidget {
                 icon: Icons.grid_view_rounded,
                 accent: appRed,
               ),
+              padding: tilePadding,
               title: '关卡选择',
               subtitle: '${kLevels.length} 关 · 已通关 ${progress.cleared}',
               onTap: onOpenLevels,
@@ -92,13 +105,14 @@ class HomeStartPanel extends StatelessWidget {
                 icon: Icons.tune_rounded,
                 accent: appJade,
               ),
+              padding: tilePadding,
               title: '设置',
               subtitle: '音效 · 刷新率',
               onTap: onOpenSettings,
             );
             if (constraints.maxWidth < 460) {
               return Column(
-                children: [levels, const SizedBox(height: 10), settingsTile],
+                children: [levels, SizedBox(height: gap), settingsTile],
               );
             }
             return Row(
@@ -110,21 +124,25 @@ class HomeStartPanel extends StatelessWidget {
             );
           },
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: gap),
         EntryTile(
           leading: const EntryBadge(
             icon: Icons.workspace_premium_rounded,
             accent: appGoldDark,
           ),
+          padding: tilePadding,
           title: '成就',
           subtitle:
               '已解锁 ${unlockedAchievementCount(settings.playerStats)}'
               ' / ${kAchievements.length}',
           onTap: onOpenAchievements,
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 10 : 12),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: compact ? 9 : 12,
+          ),
           decoration: BoxDecoration(
             color: colors.surface.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(14),
@@ -159,6 +177,7 @@ class _DailyCard extends StatelessWidget {
     required this.stars,
     required this.bestScore,
     required this.streak,
+    required this.compact,
     required this.onTap,
   });
 
@@ -166,6 +185,7 @@ class _DailyCard extends StatelessWidget {
   final int stars;
   final int bestScore;
   final int streak;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
@@ -181,7 +201,12 @@ class _DailyCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          padding: EdgeInsets.fromLTRB(
+            14,
+            compact ? 10 : 12,
+            14,
+            compact ? 10 : 12,
+          ),
           decoration: BoxDecoration(
             color: appJade.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(14),
@@ -272,12 +297,14 @@ class _ContinueCard extends StatelessWidget {
     required this.level,
     required this.unlocked,
     required this.stars,
+    required this.compact,
     required this.onTap,
   });
 
   final Level level;
   final int unlocked;
   final int stars;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
@@ -290,7 +317,12 @@ class _ContinueCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            compact ? 14 : 18,
+            20,
+            compact ? 14 : 18,
+          ),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,

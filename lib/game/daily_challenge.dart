@@ -27,9 +27,14 @@ class DailyChallenge {
   /// 存储键片段，格式为 `yyyyMMdd`。
   final String dateKey;
 
+  /// 当天关卡只生成一次：首页在设置变化时会重建，没必要反复推算随机布局。
+  static DailyChallenge? _today;
+
   static DailyChallenge of(DateTime date) {
     final day = DateTime(date.year, date.month, date.day);
     final dateKey = formatDateKey(day);
+    final cached = _today;
+    if (cached != null && cached.dateKey == dateKey) return cached;
     final dayIndex = day.difference(DateTime(2024)).inDays;
     final seed = dayIndex * 7919 + 17;
     final random = Random(seed);
@@ -52,7 +57,7 @@ class DailyChallenge {
       dailyKey: dateKey,
       dailySeed: seed,
     );
-    return DailyChallenge(level: level, seed: seed, dateKey: dateKey);
+    return _today = DailyChallenge(level: level, seed: seed, dateKey: dateKey);
   }
 
   /// 今日目标的一句话摘要，用于首页卡片。

@@ -82,6 +82,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('手机尺寸下首页整屏铺满、无标题栏且内容垂直居中', (tester) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+    await tester.pump();
+
+    expect(
+      tester.getRect(find.byType(Scaffold)),
+      const Rect.fromLTWH(0, 0, 412, 915),
+      reason: '首页背景应铺满整屏，不额外留出系统栏',
+    );
+    expect(find.byType(AppBar), findsNothing, reason: '首页不使用标题栏占位');
+
+    final top = tester.getRect(find.byType(HomeTopBar)).top;
+    final footer = tester.getRect(
+      find.text('v${AppConstants.version} · 本地运行，无需联网'),
+    );
+    expect(915 - footer.bottom, closeTo(top, 0.5), reason: '上下列白应相等');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('窄屏手机首页不溢出，关卡与设置入口改为上下堆叠', (tester) async {
     tester.view.physicalSize = const Size(360, 740);
     tester.view.devicePixelRatio = 1.0;

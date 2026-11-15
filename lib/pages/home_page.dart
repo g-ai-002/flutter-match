@@ -65,8 +65,13 @@ class HomePage extends StatelessWidget {
             builder: (context, constraints) {
               final wide =
                   constraints.maxWidth >= 900 && constraints.maxHeight >= 620;
+              // 窄屏手机内容天然偏高，收紧品牌区与卡片留白，整页才能居中。
+              final compact =
+                  !wide &&
+                  constraints.maxWidth < 600 &&
+                  constraints.maxHeight < 960;
               final horizontal = constraints.maxWidth >= 900 ? 40.0 : 20.0;
-              const vertical = 16.0;
+              final vertical = compact ? 12.0 : 16.0;
               final minHeight = (constraints.maxHeight - vertical * 2).clamp(
                 0.0,
                 double.infinity,
@@ -111,15 +116,16 @@ class HomePage extends StatelessWidget {
                             ],
                           )
                         else ...[
-                          const HomeHero(),
-                          const SizedBox(height: 24),
+                          HomeHero(compact: compact),
+                          SizedBox(height: compact ? 16 : 24),
                           _startPanel(
                             context,
                             settings: settings,
                             daily: daily,
+                            compact: compact,
                           ),
                         ],
-                        const SizedBox(height: 20),
+                        SizedBox(height: compact ? 12 : 20),
                         Text(
                           'v${AppConstants.version} · 本地运行，无需联网',
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -142,9 +148,11 @@ class HomePage extends StatelessWidget {
     BuildContext context, {
     required SettingsProvider settings,
     required DailyChallenge daily,
+    bool compact = false,
   }) => HomeStartPanel(
     settings: settings,
     daily: daily,
+    compact: compact,
     onStart: (level) => _openGame(context, level),
     onStartDaily: () => _openGame(context, daily.level),
     onStartEndless: () => _openEndless(context),
