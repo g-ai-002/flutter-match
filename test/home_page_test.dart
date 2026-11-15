@@ -107,6 +107,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('折叠屏尺寸首页同样整屏居中', (tester) async {
+    tester.view.physicalSize = const Size(673, 841);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+    await tester.pump();
+
+    final top = tester.getRect(find.byType(HomeTopBar)).top;
+    final footer = tester.getRect(
+      find.text('v${AppConstants.version} · 本地运行，无需联网'),
+    );
+    expect(841 - footer.bottom, closeTo(top, 0.5), reason: '上下列白应相等');
+    expect(footer.bottom, lessThan(841), reason: '内容应完整落在屏幕内');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('窄屏手机首页不溢出，关卡与设置入口改为上下堆叠', (tester) async {
     tester.view.physicalSize = const Size(360, 740);
     tester.view.devicePixelRatio = 1.0;

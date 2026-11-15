@@ -153,6 +153,8 @@ class LogService {
     _writing = future;
     return future.whenComplete(() {
       if (identical(_writing, future)) _writing = null;
+      // 写入期间新到的日志若错过了本轮循环，再排一次以免长时间留在内存。
+      if (_pending.isNotEmpty) _scheduleFlush();
     });
   }
 

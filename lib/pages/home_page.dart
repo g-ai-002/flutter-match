@@ -65,11 +65,8 @@ class HomePage extends StatelessWidget {
             builder: (context, constraints) {
               final wide =
                   constraints.maxWidth >= 900 && constraints.maxHeight >= 620;
-              // 窄屏手机内容天然偏高，收紧品牌区与卡片留白，整页才能居中。
-              final compact =
-                  !wide &&
-                  constraints.maxWidth < 600 &&
-                  constraints.maxHeight < 960;
+              // 窄屏与折叠屏内容天然偏高，收紧品牌区与卡片留白，整页才能居中。
+              final compact = !wide && constraints.maxHeight < 960;
               final horizontal = constraints.maxWidth >= 900 ? 40.0 : 20.0;
               final vertical = compact ? 12.0 : 16.0;
               final minHeight = (constraints.maxHeight - vertical * 2).clamp(
