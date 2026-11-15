@@ -1,9 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../models/tile.dart';
 import '../utils/system_ui.dart';
 import 'skins.dart';
-import 'tile_art.dart';
 
 export 'palette.dart';
 export 'skins.dart';
@@ -178,6 +176,3 @@ ThemeData _buildBase({
     splashFactory: InkSparkle.splashFactory,
   );
 }
-
-/// 关卡卡片、目标徽章等界面元素共用的棋子配色。
-Color tileColorOf(TileType type) => kTilePalettes[type]!.base;

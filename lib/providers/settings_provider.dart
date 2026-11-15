@@ -78,7 +78,6 @@ class SettingsProvider extends ChangeNotifier {
       _achievements ??= evaluateAchievements(playerStats);
 
   int get totalStars => progress.totalStars;
-  int get clearedCount => progress.cleared;
 
   /// 对局结束时累计成就统计。
   Future<void> recordStats({

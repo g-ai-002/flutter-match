@@ -13,4 +13,3 @@ const Color appInkOnGold = Color(0xFF2A1206);
 const Color appJade = Color(0xFF3F6B5B);
 const Color appSuccess = Color(0xFF3F8A5F);
 const Color appIce = Color(0xFF4F86B5);
-const Color appInk = Color(0xFF2B2620);
