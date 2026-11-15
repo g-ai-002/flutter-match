@@ -178,10 +178,12 @@ void main() {
       board.size = Vector2(520, 520);
 
       _paint(board);
+      final beforeHint = board.painter.staticFrameBuilds;
       controller.requestHint();
       expect(controller.hint, isNotNull);
       _paint(board);
       final builds = board.painter.staticFrameBuilds;
+      expect(builds, beforeHint, reason: '提示只绘制在覆盖层，棋盘层不必重录');
       final hintFrames = board.painter.hintFrames;
 
       // 提示闪烁 1 秒：覆盖层逐帧刷新，棋盘层一张 Picture 用到底。
@@ -232,6 +234,64 @@ void main() {
         paintFrame(frame / 60);
       }
       expect(board.painter.staticFrameBuilds, builds);
+
+      board.onRemove();
+      controller.dispose();
+      dark.dispose();
+    });
+  });
+
+  testWidgets('底板只录一次位图，逐帧与提示脉冲都不重复光栅化', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 19);
+      final dark = ValueNotifier(false);
+      final board = BoardComponent(controller: controller, darkMode: dark);
+      await board.onLoad();
+      board.size = Vector2(520, 520);
+
+      _paint(board);
+      expect(board.painter.panelRasterizations, 1);
+      _paint(board);
+      expect(board.painter.panelRasterizations, 1);
+
+      controller.requestHint();
+      for (var frame = 0; frame < 60; frame++) {
+        board.update(1 / 60);
+        _paint(board);
+      }
+      expect(board.painter.panelRasterizations, 1, reason: '底板位图逐帧复用');
+
+      dark.value = true;
+      _paint(board);
+      expect(board.painter.panelRasterizations, 2, reason: '深浅色切换重录一次');
+
+      board.size = Vector2(600, 600);
+      _paint(board);
+      expect(board.painter.panelRasterizations, 3, reason: '格子尺寸变化重录一次');
+
+      board.onRemove();
+      controller.dispose();
+      dark.dispose();
+    });
+  });
+
+  testWidgets('选中光晕不把模糊滤镜留给邻格高亮', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 23);
+      final dark = ValueNotifier(false);
+      final board = BoardComponent(controller: controller, darkMode: dark);
+      await board.onLoad();
+      board.size = Vector2(520, 520);
+
+      _paint(board);
+      controller.tapCell(0);
+      expect(controller.selected, 0);
+      _paint(board);
+      expect(
+        board.painter.selectionBlurred,
+        isFalse,
+        reason: '邻格与滑动高亮应保持清晰，模糊只留给选中光晕',
+      );
 
       board.onRemove();
       controller.dispose();

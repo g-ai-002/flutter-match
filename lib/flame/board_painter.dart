@@ -21,10 +21,11 @@ typedef SwipePreview = ({int from, int to, double progress});
 /// 只负责画，不持有动画状态；视觉列表与计时由 [BoardComponent] 维护。
 /// 棋盘层（面板、棋子、冰层、选中）与覆盖层（提示脉冲、消除粒子）分开：
 /// 棋盘静止时整层缓存为 Picture，提示闪烁与粒子扩散只重绘覆盖层；
-/// 底板与棋盘格同样单独缓存，避免每帧重建渐变与底纹。
+/// 底板（含软阴影与格纹）单独录成位图，避免逐帧重放高斯模糊。
 ///
 /// 热路径上的取舍：
 /// - 棋子与冰面是预录好的位图，每帧只做一次缩放贴图，不再重放渐变与文字；
+/// - 底板同样位图化，每帧一次贴图，不再重光栅化软阴影；
 /// - 淡出直接用画笔透明度贴图，不再为每枚棋子开一次 saveLayer；
 /// - 格子矩形、冰面坐标在排版或冰层变化时预计算，逐帧不再扫描整盘；
 /// - 贴图按定长数组下标取用，每帧只同步一次格子尺寸。
@@ -41,11 +42,17 @@ class BoardPainter {
   final TileSpriteCache sprites;
   final ValueListenable<bool> darkMode;
 
+  /// 底板位图的像素倍率与边长上限：兼顾高分屏清晰度与显存占用。
+  static const double _maxPanelRatio = 2;
+  static const int _maxPanelSide = 1600;
+
   final List<TileVisual> _order = [];
   final Paint _ringPaint = Paint()..style = PaintingStyle.stroke;
   final Paint _selectionPaint = Paint();
+  final Paint _glowPaint = Paint();
   final Paint _tilePaint = Paint()..filterQuality = FilterQuality.low;
   final Paint _fadePaint = Paint()..filterQuality = FilterQuality.low;
+  final Paint _panelPaint = Paint()..filterQuality = FilterQuality.low;
   final Paint _arrowPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round
@@ -53,9 +60,13 @@ class BoardPainter {
   final Paint _sparkRingPaint = Paint()..style = PaintingStyle.stroke;
   final Paint _sparkDotPaint = Paint();
 
-  ui.Picture? _panel;
+  /// 底板位图：软阴影、渐变与格纹只画一次，逐帧只贴一张图。
+  ui.Image? _panel;
   int _panelCellKey = -1;
   bool _panelDark = false;
+  double _panelBleed = 0;
+  double _panelWidth = 0;
+  double _panelHeight = 0;
 
   ui.Picture? _staticFrame;
   int _staticRevision = -1;
@@ -78,6 +89,14 @@ class BoardPainter {
   /// 冰面坐标表重建次数，供性能测试断言没有逐帧扫描。
   @visibleForTesting
   int iceListBuilds = 0;
+
+  /// 底板位图录制次数，供性能测试断言底板只在尺寸或主题变化时重录。
+  @visibleForTesting
+  int panelRasterizations = 0;
+
+  /// 选中提示是否被误加了模糊滤镜；供性能测试断言高亮保持清晰。
+  @visibleForTesting
+  bool get selectionBlurred => _selectionPaint.maskFilter != null;
 
   /// 格子尺寸按 1/4 像素量化，和贴图缓存保持一致。
   int get _cellKey => (layout.cell * 4).round();
@@ -133,6 +152,10 @@ class BoardPainter {
     _panel?.dispose();
     _panel = null;
     _panelCellKey = -1;
+    _panelDark = false;
+    _panelBleed = 0;
+    _panelWidth = 0;
+    _panelHeight = 0;
     _iceCells = const [];
     _iceRevision = -1;
   }
@@ -252,34 +275,67 @@ class BoardPainter {
     }
   }
 
-  /// 底板与棋盘格是静态图案，按格子尺寸和主题缓存为一张 Picture。
+  /// 底板与棋盘格是静态图案，按格子尺寸和主题录成一张位图。
+  ///
+  /// 底板里的软阴影是高斯模糊，若每帧重放绘制指令，模糊会被重新光栅化；
+  /// 录成位图后逐帧只是一次贴图，动画与提示脉冲期间不再有这笔开销。
   void _paintPanel(Canvas canvas, bool dark) {
-    final key = _cellKey;
-    if (_panel == null || key != _panelCellKey || dark != _panelDark) {
+    if (_panel == null || _cellKey != _panelCellKey || dark != _panelDark) {
       _panel?.dispose();
-      _panel = _recordPanel(dark);
-      _panelCellKey = key;
-      _panelDark = dark;
+      _recordPanel(dark);
     }
-    final pad = layout.cell * 0.6;
-    canvas
-      ..save()
-      ..translate(layout.left - pad, layout.top - pad)
-      ..drawPicture(_panel!)
-      ..restore();
+    canvas.drawImageRect(
+      _panel!,
+      Rect.fromLTWH(0, 0, _panel!.width.toDouble(), _panel!.height.toDouble()),
+      Rect.fromLTWH(
+        layout.left - _panelBleed,
+        layout.top - _panelBleed,
+        _panelWidth,
+        _panelHeight,
+      ),
+      _panelPaint,
+    );
   }
 
-  ui.Picture _recordPanel(bool dark) {
+  void _recordPanel(bool dark) {
     final cell = layout.cell;
     final pad = cell * 0.6;
+    // 软阴影与描边会溢出底板边界，位图按溢出后的范围录制，避免阴影被裁边。
+    final bleed = pad + cell * 0.46;
+    final logicalWidth = cell * layout.cols + bleed * 2;
+    final logicalHeight = cell * layout.rows + bleed * 2;
+    final native = ui.PlatformDispatcher.instance.implicitView?.devicePixelRatio;
+    // 底板只有渐变与格纹，2 倍足够清晰；上限 1600 像素避免大窗口占用过多显存。
+    final ratio = math.min(
+      math.min(native ?? 1, _maxPanelRatio),
+      _maxPanelSide / math.max(logicalWidth, logicalHeight),
+    );
+    final width = (logicalWidth * ratio).round().clamp(1, _maxPanelSide);
+    final height = (logicalHeight * ratio).round().clamp(1, _maxPanelSide);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)
+      ..scale(width / logicalWidth, height / logicalHeight)
+      ..translate(bleed - pad, bleed - pad);
+    _drawPanel(canvas, dark, pad, cell);
+    final picture = recorder.endRecording();
+    _panel = picture.toImageSync(width, height);
+    picture.dispose();
+    _panelCellKey = _cellKey;
+    _panelDark = dark;
+    _panelBleed = bleed;
+    _panelWidth = logicalWidth;
+    _panelHeight = logicalHeight;
+    panelRasterizations++;
+  }
+
+  void _drawPanel(Canvas canvas, bool dark, double pad, double cell) {
     final rect = Rect.fromLTWH(
       pad,
       pad,
       cell * layout.cols,
       cell * layout.rows,
     );
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
     final radius = Radius.circular(cell * 0.35);
     final outer = RRect.fromRectAndRadius(rect.inflate(cell * 0.16), radius);
     canvas.drawRRect(
@@ -321,7 +377,6 @@ class BoardPainter {
         );
       }
     }
-    return recorder.endRecording();
   }
 
   /// 棋子按行、列顺序绘制，列表复用 + 近有序插入排序，避免每帧拷贝与全量排序。
@@ -379,7 +434,8 @@ class BoardPainter {
       layout.top + (visual.row + 0.5) * cell,
     );
     if (selected) {
-      _selectionPaint
+      // 模糊光晕用自己的画笔，避免模糊滤镜残留在选中/滑动高亮上。
+      _glowPaint
         ..color = appGoldLight.withValues(alpha: 0.5)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * 0.1);
       canvas.drawRRect(
@@ -391,7 +447,7 @@ class BoardPainter {
           ).deflate(cell * 0.06),
           Radius.circular(cell * 0.26),
         ),
-        _selectionPaint,
+        _glowPaint,
       );
     }
     final size = cell * scale;

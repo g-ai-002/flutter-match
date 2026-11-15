@@ -69,6 +69,7 @@ class BoardComponent extends PositionComponent
 
   int _seenEpoch = 0;
   int _seenRevision = 0;
+  int _seenSelected = -1;
 
   /// 视觉状态版本号：棋盘内容、选中或提示变化时自增，用于静态帧缓存失效。
   int _frameRevision = 0;
@@ -145,8 +146,14 @@ class BoardComponent extends PositionComponent
 
   void _onControllerChanged() {
     if (isRemoved) return;
-    _frameRevision++;
     _dirtyFrame = true;
+    // 只有棋盘层的内容变化才需要重录静止画面；分数、步数与提示属于覆盖层，
+    // 通知再频繁也不能把整盘 Picture 作废。
+    final selected = controller.selected;
+    if (selected != _seenSelected) {
+      _seenSelected = selected;
+      _frameRevision++;
+    }
     if (controller.boardRevision != _seenRevision) {
       _seenRevision = controller.boardRevision;
       if (!_running) _syncFromBoard();
