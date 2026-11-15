@@ -26,6 +26,9 @@ class LogService {
 
   static String get logFilePath => '';
 
+  /// Web 端日志只留在内存里，没有待刷盘的缓冲。
+  static Future<void> flush() async {}
+
   static void info(String message) => _write('INFO', message);
 
   static void warning(String message) => _write('WARN', message);

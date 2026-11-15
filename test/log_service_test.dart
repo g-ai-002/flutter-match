@@ -18,9 +18,34 @@ void main() {
     expect(logs.any((line) => line.contains('测试异常')), isTrue);
     expect(LogService.logFilePath, contains(dir.path));
 
+    await LogService.flush();
     final file = File(LogService.logFilePath);
     expect(file.existsSync(), isTrue);
     expect(file.readAsStringSync(), contains('测试日志'));
+
+    LogService.reset();
+    await dir.delete(recursive: true);
+  });
+
+  test('多条日志合并成一次写盘，不逐行同步 IO', () async {
+    LogService.reset();
+    LogService.flushBatches = 0;
+    final dir = await Directory.systemTemp.createTemp('fortune_log_batch');
+    await LogService.init(logRoot: () async => dir);
+    final path = LogService.logFilePath;
+    final before = LogService.flushBatches;
+
+    LogService.info('批量日志一');
+    LogService.info('批量日志二');
+    LogService.info('批量日志三');
+    // 批量刷盘有 120ms 延迟，紧接着读文件时内容还没落盘。
+    expect(File(path).readAsStringSync(), isNot(contains('批量日志一')));
+
+    await LogService.flush();
+    expect(LogService.flushBatches - before, 1, reason: '三条日志只写一次文件');
+    final content = File(path).readAsStringSync();
+    expect(content, contains('批量日志一'));
+    expect(content, contains('批量日志三'));
 
     LogService.reset();
     await dir.delete(recursive: true);

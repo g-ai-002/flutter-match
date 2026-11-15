@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import 'pages/home_page.dart';
 import 'providers/settings_provider.dart';
+import 'services/log_service.dart';
 import 'services/music_service.dart';
 import 'services/sound_service.dart';
 import 'services/storage_service.dart';
@@ -26,6 +27,18 @@ class FortuneMatchApp extends StatefulWidget {
 
 class _FortuneMatchAppState extends State<FortuneMatchApp>
     with WidgetsBindingObserver {
+  /// 主题只与字体族有关，构建一次后复用；否则每次设置变化都要重建两套 ThemeData。
+  ThemeData? _lightTheme;
+  ThemeData? _darkTheme;
+  String? _themeFont;
+
+  void _ensureThemes(String? fontFamily) {
+    if (_themeFont == fontFamily && _lightTheme != null) return;
+    _themeFont = fontFamily;
+    _lightTheme = buildLightTheme(fontFamily: fontFamily);
+    _darkTheme = buildDarkTheme(fontFamily: fontFamily);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -49,11 +62,15 @@ class _FortuneMatchAppState extends State<FortuneMatchApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        // 部分 Android 设备回到前台会恢复系统栏，重新进入全屏沉浸。
+        applyAppChrome();
         MusicService.resumeForLifecycle();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
         MusicService.pauseForLifecycle();
+        // 切后台时把缓冲中的日志落盘，进程被系统回收也不丢排查信息。
+        unawaited(LogService.flush());
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
@@ -69,6 +86,7 @@ class _FortuneMatchAppState extends State<FortuneMatchApp>
     } else if (defaultTargetPlatform == TargetPlatform.windows) {
       fontFamily = 'Microsoft YaHei UI';
     }
+    _ensureThemes(fontFamily);
     return ChangeNotifierProvider(
       create: (_) => SettingsProvider(widget.storage),
       child: Consumer<SettingsProvider>(
@@ -77,8 +95,8 @@ class _FortuneMatchAppState extends State<FortuneMatchApp>
           return MaterialApp(
             title: AppConstants.appName,
             debugShowCheckedModeBanner: false,
-            theme: buildLightTheme(fontFamily: fontFamily),
-            darkTheme: buildDarkTheme(fontFamily: fontFamily),
+            theme: _lightTheme,
+            darkTheme: _darkTheme,
             themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
