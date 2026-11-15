@@ -129,8 +129,9 @@ class BoardComponent extends PositionComponent
     onActivityChanged = null;
     controller.removeListener(_onControllerChanged);
     _clearSwipe();
-    _sprites.dispose();
+    // 先丢引用旧位图的静态画面，再释放位图本身。
     _painter.dispose();
+    _sprites.dispose();
     _visuals.clear();
     _sparks.clear();
     _steps = const [];
@@ -394,8 +395,8 @@ class BoardComponent extends PositionComponent
     while (_refreshIndex < _warmupRefreshAt.length &&
         _time >= _warmupRefreshAt[_refreshIndex]) {
       _refreshIndex++;
-      _sprites.invalidate();
       _painter.invalidateStatic();
+      _sprites.invalidate();
       _frameRevision++;
       _dirtyFrame = true;
     }
@@ -452,8 +453,10 @@ class BoardComponent extends PositionComponent
   }
 
   /// 空闲帧分批预录贴图，避免第一次消除时才录制造成掉帧。
+  ///
+  /// 预录完成后不再检查，动画期间每帧只保留一次布尔判断。
   void _warmUpSprites() {
-    if (isRemoved || _layout.cell < 8) return;
+    if (isRemoved || !_sprites.warmupPending || _layout.cell < 8) return;
     _sprites.warmupStep(_layout.cell, budget: 3);
   }
 

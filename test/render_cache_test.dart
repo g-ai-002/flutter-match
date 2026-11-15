@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/flame/board_component.dart';
+import 'package:fortune_match/flame/board_timings.dart';
 import 'package:fortune_match/flame/spark.dart';
 import 'package:fortune_match/game/levels.dart';
 import 'package:fortune_match/game/match_controller.dart';
@@ -68,6 +69,33 @@ void main() {
       expect(board.painter.staticFrameBuilds, idleBuilds);
 
       board.removeFromParent();
+      controller.dispose();
+    });
+  });
+
+  testWidgets('贴图重建后静止画面跟着重录，不会引用已释放的位图', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 31);
+      final board = BoardComponent(
+        controller: controller,
+        darkMode: ValueNotifier(false),
+      );
+      await board.onLoad();
+      board.size = Vector2(480, 480);
+
+      _paint(board);
+      expect(board.painter.staticFrameBuilds, 1);
+      _paint(board);
+      expect(board.painter.staticFrameBuilds, 1);
+
+      // 字体晚到或尺寸变化会丢弃全部位图，缓存画面必须一并失效。
+      board.painter.sprites.invalidate();
+      _paint(board);
+      expect(board.painter.staticFrameBuilds, 2);
+      _paint(board);
+      expect(board.painter.staticFrameBuilds, 2);
+
+      board.onRemove();
       controller.dispose();
     });
   });
@@ -204,6 +232,53 @@ void main() {
         paintFrame(frame / 60);
       }
       expect(board.painter.staticFrameBuilds, builds);
+
+      board.onRemove();
+      controller.dispose();
+      dark.dispose();
+    });
+  });
+
+  testWidgets('淡出棋子按画笔透明度贴图，颜色向底板过渡', (tester) async {
+    await tester.runAsync(() async {
+      final controller = MatchController(level: kLevels.first, seed: 33);
+      final dark = ValueNotifier(false);
+      final board = BoardComponent(controller: controller, darkMode: dark);
+      await board.onLoad();
+      board.size = Vector2(560, 560);
+
+      Future<List<int>> pixelAt(int cell) async {
+        final recorder = ui.PictureRecorder();
+        // 直接走逐帧绘制，绕过静止画面缓存。
+        board.painter.paint(
+          ui.Canvas(recorder),
+          visuals: board.visuals,
+          sparks: const [],
+          time: 0,
+        );
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(560, 560);
+        final data = (await image.toByteData())!;
+        final center = board.painter.layout.cellCenter(cell);
+        final offset = (center.dy.floor() * 560 + center.dx.floor()) * 4;
+        picture.dispose();
+        image.dispose();
+        return [
+          data.getUint8(offset),
+          data.getUint8(offset + 1),
+          data.getUint8(offset + 2),
+        ];
+      }
+
+      final visual = board.visuals.first;
+      final before = await pixelAt(visual.cell);
+      visual
+        ..dying = true
+        ..dieElapsed = BoardTimings.clear * 0.5;
+      final during = await pixelAt(visual.cell);
+      final delta = [for (var i = 0; i < 3; i++) (before[i] - during[i]).abs()]
+          .reduce((a, b) => a + b);
+      expect(delta, greaterThan(10), reason: '半透明的棋子应透出底板颜色');
 
       board.onRemove();
       controller.dispose();

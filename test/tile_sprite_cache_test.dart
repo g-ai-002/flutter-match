@@ -1,8 +1,32 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/flame/tile_sprite_cache.dart';
 import 'package:fortune_match/models/tile.dart';
 
 void main() {
+  test('贴图按设备像素比录成位图，同尺寸反复取图不再重录', () {
+    final cache = TileSpriteCache();
+    addTearDown(cache.dispose);
+
+    final image = cache.tile(TileType.coin, SpecialType.none, 40);
+    expect(image, isA<ui.Image>());
+    expect(image.width, greaterThanOrEqualTo(40));
+    expect(image.height, image.width);
+    expect(cache.sourceRect.width, image.width.toDouble());
+
+    cache.tile(TileType.lotus, SpecialType.rainbow, 40);
+    final recorded = cache.rasterizations;
+    for (var frame = 0; frame < 30; frame++) {
+      for (var index = 0; index < 20; index++) {
+        cache.beginFrame(40);
+        cache.tile(TileType.coin, SpecialType.none, 40);
+        cache.tile(TileType.lotus, SpecialType.rainbow, 40);
+      }
+    }
+    expect(cache.rasterizations, recorded, reason: '逐帧取图必须复用位图');
+  });
+
   test('同尺寸同类型复用贴图，类型或尺寸变化才重建', () {
     final cache = TileSpriteCache();
     addTearDown(cache.dispose);
@@ -39,7 +63,7 @@ void main() {
     cache.dispose();
     final second = cache.tile(TileType.lotus, SpecialType.bomb, 32);
     expect(identical(first, second), isFalse);
-    expect(second.approximateBytesUsed, greaterThan(0));
+    expect(second.width, greaterThan(0));
     cache.dispose();
   });
 
@@ -59,8 +83,8 @@ void main() {
     // 全部类型 × 特殊棋子都已缓存，开始消除时不再临时录制。
     for (final type in TileType.values) {
       for (final special in SpecialType.values) {
-        final picture = cache.tile(type, special, 40);
-        expect(picture.approximateBytesUsed, greaterThan(0));
+        final image = cache.tile(type, special, 40);
+        expect(image.width, greaterThan(0));
       }
     }
 
