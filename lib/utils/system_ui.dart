@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -35,4 +36,13 @@ class SystemUiOverlay extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// 应用默认的系统栏状态：Android 全屏沉浸，桌面与 Web 交给系统窗口。
+///
+/// 首页、设置页与对局页共用这一状态。对局页只在其上追加横屏方向锁定，
+/// 退出横屏全屏时回到这里，系统栏不会在页面之间忽隐忽现。
+void applyAppChrome() {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 }

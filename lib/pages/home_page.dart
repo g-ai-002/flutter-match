@@ -66,12 +66,25 @@ class HomePage extends StatelessWidget {
               final wide =
                   constraints.maxWidth >= 900 && constraints.maxHeight >= 620;
               final horizontal = constraints.maxWidth >= 900 ? 40.0 : 20.0;
+              const vertical = 16.0;
+              final minHeight = (constraints.maxHeight - vertical * 2).clamp(
+                0.0,
+                double.infinity,
+              );
               return SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 22),
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontal,
+                  vertical: vertical,
+                ),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1100),
+                    constraints: BoxConstraints(
+                      maxWidth: 1100,
+                      minHeight: minHeight,
+                    ),
                     child: Column(
+                      // 空间富余时整页在屏幕内垂直居中，内容过高则照常滚动。
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         HomeTopBar(
                           coins: settings.coins,

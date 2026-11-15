@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fortune_match/pages/home_page.dart';
+import 'package:fortune_match/pages/widgets/home_top_bar.dart';
 import 'package:fortune_match/providers/settings_provider.dart';
 import 'package:fortune_match/services/sound_service.dart';
 import 'package:fortune_match/services/storage_service.dart';
@@ -59,6 +60,26 @@ void main() {
     final start = tester.getRect(find.text('开始闯关'));
     expect(start.left, greaterThan(title.dx));
     expect(start.bottom, lessThan(900));
+  });
+
+  testWidgets('大屏首页内容垂直居中，上下留白对称', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final storage = await StorageService.instance;
+    await tester.pumpWidget(_wrap(SettingsProvider(storage)));
+    await tester.pump();
+
+    final top = tester.getRect(find.byType(HomeTopBar)).top;
+    final footer = tester.getRect(
+      find.text('v${AppConstants.version} · 本地运行，无需联网'),
+    );
+    expect(top, greaterThan(0), reason: '内容应留出上边距');
+    expect(900 - footer.bottom, closeTo(top, 0.5), reason: '上下留白应相等');
+    expect(footer.bottom, lessThan(900), reason: '整页内容应落在可见区域内');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('窄屏手机首页不溢出，关卡与设置入口改为上下堆叠', (tester) async {

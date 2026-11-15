@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'system_ui.dart';
+
 /// 低于该高度时对局页改用紧凑留白。
 const double kBoardCompactHeight = 560;
 
@@ -89,14 +91,15 @@ class _BoardDisplayModeState extends State<BoardDisplayMode> {
       DeviceOrientation.landscapeRight,
     ]);
     if (!mounted) return;
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    applyAppChrome();
   }
 
   void _release() {
     if (_holders > 0) _holders--;
     if (_holders > 0) return;
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // 退出横屏全屏后回到应用默认的全屏沉浸，系统栏不会再次出现。
+    applyAppChrome();
   }
 
   @override
